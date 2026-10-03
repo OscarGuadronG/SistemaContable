@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<persistence xmlns="https://jakarta.ee/xml/ns/persistence"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="https://jakarta.ee/xml/ns/persistence https://jakarta.ee/xml/ns/persistence/persistence_3_0.xsd"
+             version="3.0">
+
+    <!-- SOLO para pruebas: valida mapeos y JPQL con EclipseLink contra H2 en memoria.
+         Nunca toca la base de datos real. El esquema NO lo genera EclipseLink: JpaTestSupport ejecuta
+         docs/esquema-bd.sql (adaptado a H2) antes de crear el EntityManagerFactory, de modo que los
+         mapeos se validan contra los nombres de columna reales. -->
+    <persistence-unit name="testPU" transaction-type="RESOURCE_LOCAL">
+        <provider>org.eclipse.persistence.jpa.PersistenceProvider</provider>
+        <class>com.sistemacontable.entity.EntidadBase</class>
+        <class>com.sistemacontable.entity.Almacen</class>
+        <class>com.sistemacontable.entity.Cliente</class>
+        <class>com.sistemacontable.entity.Compra</class>
+        <class>com.sistemacontable.entity.CompraDetalle</class>
+        <class>com.sistemacontable.entity.Cuenta</class>
+        <class>com.sistemacontable.entity.Departamento</class>
+        <class>com.sistemacontable.entity.Empleado</class>
+        <class>com.sistemacontable.entity.Existencias</class>
+        <class>com.sistemacontable.entity.Kardex</class>
+        <class>com.sistemacontable.entity.KardexDetalle</class>
+        <class>com.sistemacontable.entity.Lote</class>
+        <class>com.sistemacontable.entity.Partida</class>
+        <class>com.sistemacontable.entity.PartidaDetalle</class>
+        <class>com.sistemacontable.entity.Planilla</class>
+        <class>com.sistemacontable.entity.PlanillaDetalle</class>
+        <class>com.sistemacontable.entity.Producto</class>
+        <class>com.sistemacontable.entity.Proveedor</class>
+        <class>com.sistemacontable.entity.Tercero</class>
+        <class>com.sistemacontable.entity.TipoProducto</class>
+        <class>com.sistemacontable.entity.UnidadMedida</class>
+        <class>com.sistemacontable.entity.Venta</class>
+        <class>com.sistemacontable.entity.VentaDetalle</class>
+        <exclude-unlisted-classes>true</exclude-unlisted-classes>
+        <properties>
+            <property name="jakarta.persistence.jdbc.driver" value="org.h2.Driver"/>
+            <property name="jakarta.persistence.jdbc.url" value="jdbc:h2:mem:contable;DB_CLOSE_DELAY=-1;MODE=LEGACY"/>
+            <property name="jakarta.persistence.jdbc.user" value="sa"/>
+            <property name="jakarta.persistence.jdbc.password" value=""/>
+            <property name="jakarta.persistence.schema-generation.database.action" value="none"/>
+            <property name="jakarta.persistence.validation.mode" value="none"/>
+            <property name="eclipselink.weaving" value="false"/>
+            <property name="eclipselink.logging.level" value="SEVERE"/>
+        </properties>
+    </persistence-unit>
+</persistence>
