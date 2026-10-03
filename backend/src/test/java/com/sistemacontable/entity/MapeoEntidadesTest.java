@@ -31,9 +31,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 
 /** Verificaciones estructurales de las 22 entidades y los 5 enums contra el esquema de la BD. */
-class MapeoEntidadesTest {
+public class MapeoEntidadesTest {
 
-    static final List<Class<? extends EntidadBase>> ENTIDADES = List.of(
+    public static final List<Class<? extends EntidadBase>> ENTIDADES = List.of(
             Almacen.class, Cliente.class, Compra.class, CompraDetalle.class, Cuenta.class, Departamento.class,
             Empleado.class, Existencias.class, Kardex.class, KardexDetalle.class, Lote.class, Partida.class,
             PartidaDetalle.class, Planilla.class, PlanillaDetalle.class, Producto.class, Proveedor.class,
