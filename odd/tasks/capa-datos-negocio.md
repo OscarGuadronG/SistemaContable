@@ -53,7 +53,7 @@
 - [x] **T1 — Andamiaje:** `pom.xml` (JPA/Validation vía jakartaee-api provided; JUnit 5, Mockito, JaCoCo, Liberty plugin, driver PostgreSQL), `persistence.xml`, `server.xml` (datasource con variables de entorno, `stringtype=unspecified`), `.env.example`, `.gitignore`, `contabilidad.properties`, excepciones. Wrapper Maven 3.9.16 ya instalado.
 - [x] **T2 — Entidades (22 tablas) + 5 enums** con `equals/hashCode` por id, validaciones Bean Validation y pruebas de mapeo básicas.
 - [x] **T3 — DAOs:** `AbstractDAO<T,ID>` + un DAO `@Stateless` por entidad con las consultas específicas necesarias (con pruebas Mockito).
-- [ ] **T4 — Servicios** de la sección anterior, **TDD estricto**.
+- [x] **T4 — Servicios** de la sección anterior, **TDD estricto**. (5 commits `feat(service)`, ver evidencia)
 - [ ] **T5 — REST:** DTOs, mappers, recursos, `ExceptionMapper`, paginación correcta.
 - [ ] **T6 — Cierre:** `./mvnw verify` verde, README del backend con arranque (`./mvnw liberty:dev`), `docs/recomendaciones-bd.md`.
 
@@ -71,3 +71,11 @@
 - **T3** (`44b76f0`): `AbstractDAO<T,ID>` + 22 DAOs `@Stateless`. Pruebas Mockito por finder, estructura de DAOs y `ConsultasJpqlTest` (JPQL real contra H2).
 - **Verificacion final de T3**: `./mvnw -q test` = 194 pruebas, 0 fallos, 0 errores; `./mvnw -q -DskipTests package` genera `target/sistema-contable.war` (sin driver ni H2/EclipseLink dentro).
 - **Desviaciones/limitaciones**: ver informe final de la tarea (EntidadBase, `backend/.env.example` bloqueado por permisos, H2 en vez de PostgreSQL en pruebas de JPQL, `liberty:dev` no ejecutado).
+- **T4** (paquete `com.sistemacontable.control.service`, comandos `record` en `...service.cmd`; 20 servicios `@Stateless @LocalBean`, errores de validación siempre `ReglaNegocioException`/`NoEncontradoException`). `./mvnw -q test` verde tras cada commit y `./mvnw -q -DskipTests package` genera el WAR:
+  - `74bf81e` PartidaService + `Dinero` (único punto de redondeo HALF_UP) + `ReglasPartida` pura. 234 pruebas.
+  - `66ae167` CuentaService + BalanzaService (`CuentaDAO.findTodas`, `Jerarquia`, `ReglasCuenta`, `CalculoBalanza`). 283 pruebas.
+  - `a88c1f9` ExistenciasService, KardexService, CompraService, VentaService, TrasladoService, AjusteService (`Asientos`, `TotalesDocumento`, `ReglasKardex`, `ClaveStock`). 372 pruebas. Atomicidad probada con H2 + transacción explícita con rollback ante cualquier excepción (`InventarioH2Test`): ante falta de stock en la 2.ª línea, cuenta configurada inexistente, almacén deshabilitado o fallo simulado a mitad de la escritura no queda kardex, existencias ni partida.
+  - `7c7f8f6` CalculoPlanilla (+ `ParametrosPlanilla`) y PlanillaService (`PlanillaDAO.buscarParaActualizar`, `ConfigContable.tiene`). 426 pruebas; valores esperados calculados a mano en los nombres/comentarios de las pruebas.
+  - `1355b45` Empleado/Departamento/Cliente/Proveedor/Tercero/UnidadMedida/TipoProducto/Producto/Lote/Almacén (`AbstractDAO.existePorReferencia`, validada contra el metamodelo), `EstructuraServiciosTest`, `ReferenciasH2Test`. 570 pruebas en total, 0 fallos.
+  - Decisiones (documentadas en el Javadoc de cada servicio): ver informe final de la tarea. Las cuentas y tasas de `contabilidad.properties` siguen siendo **valores de referencia a verificar** (catálogo real y normativa ISSS/AFP/renta/horas extra).
+  - Nota de proceso: el ciclo RED→GREEN se verificó con ejecución previa en todos los grupos salvo en los puros de inventario del tercer commit (`ReglasKardexTest`, `AsientosTest`, `ExistenciasServiceTest`, `KardexServiceTest`), que se escribieron antes que su código pero cuyo fallo previo (compilación) no se ejecutó por separado.
