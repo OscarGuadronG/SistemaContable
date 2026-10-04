@@ -84,6 +84,11 @@ public class EmpleadoService {
         return empleadoDAO.findRange(first, max);
     }
 
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return empleadoDAO.count();
+    }
+
     private void aplicar(Empleado empleado, EmpleadoCmd cmd, EstadoEmpleado estadoPorDefecto) {
         if (cmd == null) {
             throw new ReglaNegocioException("Los datos del empleado son obligatorios");

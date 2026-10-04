@@ -2,6 +2,7 @@ package com.sistemacontable.control.service;
 
 import com.sistemacontable.control.KardexDAO;
 import com.sistemacontable.control.KardexDetalleDAO;
+import com.sistemacontable.control.exception.NoEncontradoException;
 import com.sistemacontable.entity.Almacen;
 import com.sistemacontable.entity.Compra;
 import com.sistemacontable.entity.Kardex;
@@ -58,5 +59,24 @@ public class KardexService {
         }
         kardexDAO.flush();
         return new MovimientoKardex(kardex, filas);
+    }
+
+    public Kardex buscarPorId(Long id) {
+        return kardexDAO.buscarPorId(id).orElseThrow(() -> new NoEncontradoException("Kardex", id));
+    }
+
+    /** Lineas de un movimiento existente. */
+    public List<KardexDetalle> detalles(Long kardexId) {
+        buscarPorId(kardexId);
+        return kardexDetalleDAO.buscarPorKardex(kardexId);
+    }
+
+    public List<Kardex> listar(int first, int max) {
+        return kardexDAO.findRange(first, max);
+    }
+
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return kardexDAO.count();
     }
 }

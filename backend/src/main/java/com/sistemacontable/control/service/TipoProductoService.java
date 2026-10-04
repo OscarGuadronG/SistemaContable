@@ -67,6 +67,11 @@ public class TipoProductoService {
         return tipoProductoDAO.findRange(first, max);
     }
 
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return tipoProductoDAO.count();
+    }
+
     private void aplicar(TipoProducto tipo, TipoProductoCmd cmd) {
         if (cmd == null) {
             throw new ReglaNegocioException("Los datos del tipo de producto son obligatorios");

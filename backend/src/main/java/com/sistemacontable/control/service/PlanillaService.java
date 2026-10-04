@@ -194,6 +194,11 @@ public class PlanillaService {
         return planillaDAO.findRange(first, max);
     }
 
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return planillaDAO.count();
+    }
+
     public List<PlanillaDetalle> detalles(Long planillaId) {
         return planillaDetalleDAO.buscarPorPlanilla(planillaId);
     }

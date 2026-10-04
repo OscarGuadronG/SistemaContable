@@ -53,6 +53,11 @@ public class UnidadMedidaService {
         return unidadMedidaDAO.findRange(first, max);
     }
 
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return unidadMedidaDAO.count();
+    }
+
     private static void aplicar(UnidadMedida unidad, UnidadMedidaCmd cmd) {
         if (cmd == null) {
             throw new ReglaNegocioException("Los datos de la unidad de medida son obligatorios");

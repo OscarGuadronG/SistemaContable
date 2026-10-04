@@ -52,6 +52,11 @@ public class DepartamentoService {
         return departamentoDAO.findRange(first, max);
     }
 
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return departamentoDAO.count();
+    }
+
     private static void aplicar(Departamento departamento, DepartamentoCmd cmd) {
         if (cmd == null) {
             throw new ReglaNegocioException("Los datos del departamento son obligatorios");

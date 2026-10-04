@@ -56,6 +56,11 @@ public class ProveedorService {
         return proveedorDAO.findRange(first, max);
     }
 
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return proveedorDAO.count();
+    }
+
     private void aplicar(Proveedor proveedor, ProveedorCmd cmd) {
         if (cmd == null) {
             throw new ReglaNegocioException("Los datos del proveedor son obligatorios");

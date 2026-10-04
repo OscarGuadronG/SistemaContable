@@ -94,4 +94,9 @@ public class AlmacenService {
     public List<Almacen> listar(int first, int max) {
         return almacenDAO.findRange(first, max);
     }
+
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return almacenDAO.count();
+    }
 }

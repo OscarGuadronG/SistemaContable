@@ -85,6 +85,15 @@ public class LoteService {
         return loteDAO.buscarPorId(id).orElseThrow(() -> new NoEncontradoException("Lote", id));
     }
 
+    public List<Lote> listar(int first, int max) {
+        return loteDAO.findRange(first, max);
+    }
+
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return loteDAO.count();
+    }
+
     /** Lotes de un producto, ordenados por numero de lote. */
     public List<Lote> porProducto(Long productoId) {
         return loteDAO.findByProducto(productoId);

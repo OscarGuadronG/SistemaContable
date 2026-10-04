@@ -164,6 +164,11 @@ public class CuentaService {
         return cuentaDAO.findRange(first, max);
     }
 
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return cuentaDAO.count();
+    }
+
     /** Todo el catalogo ordenado por codigo. */
     public List<Cuenta> todas() {
         return cuentaDAO.findTodas();

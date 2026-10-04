@@ -52,6 +52,11 @@ public class TerceroService {
         return terceroDAO.findRange(first, max);
     }
 
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return terceroDAO.count();
+    }
+
     private static void aplicar(Tercero tercero, TerceroCmd cmd) {
         if (cmd == null) {
             throw new ReglaNegocioException("Los datos del tercero son obligatorios");

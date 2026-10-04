@@ -64,6 +64,25 @@ public class CompraService {
     @Inject
     private ConfigContable config;
 
+    public Compra buscarPorId(Long id) {
+        return compraDAO.buscarPorId(id).orElseThrow(() -> new NoEncontradoException("Compra", id));
+    }
+
+    /** Lineas de una compra existente. */
+    public List<CompraDetalle> detalles(Long compraId) {
+        buscarPorId(compraId);
+        return compraDetalleDAO.buscarPorCompra(compraId);
+    }
+
+    public List<Compra> listar(int first, int max) {
+        return compraDAO.findRange(first, max);
+    }
+
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return compraDAO.count();
+    }
+
     public ResultadoCompra registrar(CompraCmd cmd) {
         // ---- Fase 1: validar y calcular sin escribir nada
         if (cmd == null) {

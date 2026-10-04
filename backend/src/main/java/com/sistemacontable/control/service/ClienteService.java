@@ -56,6 +56,11 @@ public class ClienteService {
         return clienteDAO.findRange(first, max);
     }
 
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return clienteDAO.count();
+    }
+
     private void aplicar(Cliente cliente, ClienteCmd cmd) {
         if (cmd == null) {
             throw new ReglaNegocioException("Los datos del cliente son obligatorios");

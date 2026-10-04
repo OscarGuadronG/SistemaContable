@@ -60,6 +60,11 @@ public class ProductoService {
         return productoDAO.findRange(first, max);
     }
 
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return productoDAO.count();
+    }
+
     private void aplicar(Producto producto, ProductoCmd cmd) {
         if (cmd == null) {
             throw new ReglaNegocioException("Los datos del producto son obligatorios");

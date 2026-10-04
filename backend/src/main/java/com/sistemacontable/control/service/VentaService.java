@@ -72,6 +72,25 @@ public class VentaService {
     @Inject
     private ConfigContable config;
 
+    public Venta buscarPorId(Long id) {
+        return ventaDAO.buscarPorId(id).orElseThrow(() -> new NoEncontradoException("Venta", id));
+    }
+
+    /** Lineas de una venta existente. */
+    public List<VentaDetalle> detalles(Long ventaId) {
+        buscarPorId(ventaId);
+        return ventaDetalleDAO.buscarPorVenta(ventaId);
+    }
+
+    public List<Venta> listar(int first, int max) {
+        return ventaDAO.findRange(first, max);
+    }
+
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return ventaDAO.count();
+    }
+
     public ResultadoVenta registrar(VentaCmd cmd) {
         // ---- Fase 1: validar y calcular sin escribir nada
         if (cmd == null) {

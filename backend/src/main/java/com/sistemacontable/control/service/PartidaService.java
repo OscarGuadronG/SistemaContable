@@ -133,6 +133,15 @@ public class PartidaService {
         return partidaDAO.buscarPorId(id).orElseThrow(() -> new NoEncontradoException("Partida", id));
     }
 
+    public List<Partida> listar(int first, int max) {
+        return partidaDAO.findRange(first, max);
+    }
+
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return partidaDAO.count();
+    }
+
     /** Lineas de una partida existente. */
     public List<PartidaDetalle> lineas(Long partidaId) {
         buscarPorId(partidaId);

@@ -2,6 +2,7 @@ package com.sistemacontable.control.service;
 
 import com.sistemacontable.control.CompraDetalleDAO;
 import com.sistemacontable.control.ExistenciasDAO;
+import com.sistemacontable.control.exception.NoEncontradoException;
 import com.sistemacontable.control.exception.ReglaNegocioException;
 import com.sistemacontable.entity.Almacen;
 import com.sistemacontable.entity.Existencias;
@@ -10,6 +11,7 @@ import jakarta.ejb.LocalBean;
 import jakarta.ejb.Stateless;
 import jakarta.inject.Inject;
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
@@ -103,5 +105,18 @@ public class ExistenciasService {
             BigDecimal requerido) {
         return new ReglaNegocioException("Stock insuficiente del lote " + loteId + " en el almacen " + almacenId
                 + ": disponible " + disponible.toPlainString() + ", requerido " + requerido.toPlainString());
+    }
+
+    public Existencias buscarPorId(Long id) {
+        return existenciasDAO.buscarPorId(id).orElseThrow(() -> new NoEncontradoException("Existencias", id));
+    }
+
+    public List<Existencias> listar(int first, int max) {
+        return existenciasDAO.findRange(first, max);
+    }
+
+    /** Total de registros (cabecera Total-Records de la paginacion REST). */
+    public long contar() {
+        return existenciasDAO.count();
     }
 }
