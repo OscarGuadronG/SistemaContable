@@ -55,7 +55,7 @@
 - [x] **T3 — DAOs:** `AbstractDAO<T,ID>` + un DAO `@Stateless` por entidad con las consultas específicas necesarias (con pruebas Mockito).
 - [x] **T4 — Servicios** de la sección anterior, **TDD estricto**. (5 commits `feat(service)`, ver evidencia)
 - [x] **T5 — REST:** DTOs, mappers, recursos, `ExceptionMapper`, paginación correcta. (5 commits `feat(rest)`/`feat(service)`, ver evidencia)
-- [x] **T6 — Cierre:** `./mvnw verify` verde, README del backend con arranque (`./mvnw liberty:dev`), `docs/recomendaciones-bd.md`. (commit `docs: cierre de la feature capa-datos-negocio`)
+- [x] **T6 — Cierre:** `./mvnw verify` verde, README del backend con arranque (`./mvnw liberty:dev`), `docs/recomendaciones-bd.md`. (commit `069ee66` `docs: cierre de la feature capa-datos-negocio`)
 
 ## Criterios de aceptación
 
@@ -79,7 +79,7 @@
   - `1355b45` Empleado/Departamento/Cliente/Proveedor/Tercero/UnidadMedida/TipoProducto/Producto/Lote/Almacén (`AbstractDAO.existePorReferencia`, validada contra el metamodelo), `EstructuraServiciosTest`, `ReferenciasH2Test`. 570 pruebas en total, 0 fallos.
   - Decisiones (documentadas en el Javadoc de cada servicio): ver informe final de la tarea. Las cuentas y tasas de `contabilidad.properties` siguen siendo **valores de referencia a verificar** (catálogo real y normativa ISSS/AFP/renta/horas extra).
   - Nota de proceso: el ciclo RED→GREEN se verificó con ejecución previa en todos los grupos salvo en los puros de inventario del tercer commit (`ReglasKardexTest`, `AsientosTest`, `ExistenciasServiceTest`, `KardexServiceTest`), que se escribieron antes que su código pero cuyo fallo previo (compilación) no se ejecutó por separado.
-- **T5** (paquete `com.sistemacontable.boundary`, `boundary.dto` 42 records, `boundary.mapper` 5 clases; 20 recursos `@Path` + `HelloResource`; `RestApplication` sigue en `/api`). `./mvnw -q verify` verde tras cada commit:
+- **T5** (paquete `com.sistemacontable.boundary`, `boundary.dto` 44 records, `boundary.mapper` 5 clases; 20 recursos `@Path` + `HelloResource`; `RestApplication` sigue en `/api`). `./mvnw -q verify` verde tras cada commit:
   - `5ddf35d` `Paginacion` (first >= 0, 1 <= max <= 100; `first=50,max=50` válido), `Parametros.fecha`, `ErrorDto`, `ErroresHttp` (traducción pura) y `ManejadorExcepciones`; dependencias de prueba (`test`): Jersey 3.1.9 (servidor JAX-RS en memoria, JSON-B), Hibernate Validator 8.0.1 + Expressly. RED observado (compilación) antes del código; 49 pruebas nuevas.
   - `e11f7db` Lecturas que necesita REST en los servicios: `contar()` en 17 servicios, `buscarPorId`/`detalles`/`listar` en compras, ventas, kardex, existencias; `listar` en partidas y lotes (`ConsultasServiciosTest`, RED observado).
   - `ea2d8f2` DTOs de entrada (`*Request`, Bean Validation solo estructural, `aCmd()`) y de salida (`*Dto`), mapeadores puros (`MapeadoresTest` con RED observado; `PeticionesTest` con Hibernate Validator real).
