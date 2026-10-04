@@ -139,6 +139,24 @@ public abstract class AbstractDAO<T, ID> {
         return em.createQuery("SELECT COUNT(e) FROM " + entidad + " e", Long.class).getSingleResult();
     }
 
+    /**
+     * Indica si existe al menos una fila de esta entidad cuyo atributo {@code atributo} es igual a {@code valor}
+     * (tipicamente una referencia: {@code existePorReferencia("departamento", unDepartamento)}). Sirve a los servicios
+     * para rechazar un borrado con referencias antes de que falle la clave foranea. El nombre del atributo se valida
+     * contra el metamodelo JPA de la entidad (un nombre inexistente lanza {@link IllegalArgumentException}), de modo que
+     * nunca se concatena texto arbitrario en la consulta.
+     */
+    public boolean existePorReferencia(String atributo, Object valor) {
+        requerirTexto(atributo, "atributo");
+        requerir(valor, "valor");
+        EntityManager em = em();
+        EntityType<T> tipo = em.getMetamodel().entity(entityClass);
+        tipo.getAttribute(atributo);
+        return hayFilas(em.createQuery(
+                "SELECT COUNT(e) FROM " + tipo.getName() + " e WHERE e." + atributo + " = :valor", Long.class)
+                .setParameter("valor", valor));
+    }
+
     /** Sincroniza el contexto de persistencia con la BD (asigna los ids IDENTITY pendientes). */
     public void flush() {
         em().flush();

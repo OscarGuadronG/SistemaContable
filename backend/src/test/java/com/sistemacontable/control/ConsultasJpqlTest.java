@@ -379,6 +379,20 @@ class ConsultasJpqlTest {
     }
 
     @Test
+    void existePorReferenciaContraLaBaseReal() {
+        EmpleadoDAO dao = dao(new EmpleadoDAO());
+        Departamento otro = new Departamento();
+        otro.setNombre("Vacio");
+        em.persist(otro);
+        em.flush();
+
+        assertTrue(dao.existePorReferencia("departamento", dep));
+        assertFalse(dao.existePorReferencia("departamento", otro));
+        assertTrue(dao.existePorReferencia("estado", EstadoEmpleado.Activo));
+        assertThrows(IllegalArgumentException.class, () -> dao.existePorReferencia("noExiste", dep));
+    }
+
+    @Test
     void planillaBuscarParaActualizarBloqueaLaFila() {
         Planilla pl = new Planilla();
         OffsetDateTime ahora = OffsetDateTime.now();

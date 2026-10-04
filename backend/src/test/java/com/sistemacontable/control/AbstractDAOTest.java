@@ -1,8 +1,10 @@
 package com.sistemacontable.control;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -17,6 +19,7 @@ import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.PersistenceException;
 import jakarta.persistence.PersistenceUnitUtil;
 import jakarta.persistence.TypedQuery;
+import jakarta.persistence.metamodel.Attribute;
 import jakarta.persistence.metamodel.EntityType;
 import jakarta.persistence.metamodel.Metamodel;
 import jakarta.persistence.metamodel.SingularAttribute;
@@ -305,6 +308,39 @@ class AbstractDAOTest {
         when(consultaConteo.getSingleResult()).thenThrow(causa);
 
         assertSame(causa, assertThrows(PersistenceException.class, dao::count));
+    }
+
+    // ---------------------------------------------------------------- existePorReferencia
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    void existePorReferenciaCuentaFilasPorUnAtributoDelMetamodelo() {
+        when(entityType.getAttribute("nombre")).thenReturn((Attribute) atributoNombre);
+        when(em.createQuery(anyString(), eq(Long.class))).thenReturn(consultaConteo);
+        when(consultaConteo.getSingleResult()).thenReturn(2L, 0L);
+
+        assertTrue(dao.existePorReferencia("nombre", "x"));
+        assertFalse(dao.existePorReferencia("nombre", "x"));
+
+        org.mockito.ArgumentCaptor<String> jpql = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(em, org.mockito.Mockito.times(2)).createQuery(jpql.capture(), eq(Long.class));
+        assertEquals("SELECT COUNT(e) FROM Departamento e WHERE e.nombre = :valor", jpql.getValue());
+        verify(consultaConteo, org.mockito.Mockito.times(2)).setParameter("valor", "x");
+    }
+
+    @Test
+    void existePorReferenciaRechazaUnAtributoQueNoExisteSinConsultar() {
+        when(entityType.getAttribute("nada")).thenThrow(new IllegalArgumentException("sin atributo"));
+
+        assertThrows(IllegalArgumentException.class, () -> dao.existePorReferencia("nada", "x"));
+        verify(em, never()).createQuery(anyString(), eq(Long.class));
+    }
+
+    @Test
+    void existePorReferenciaRechazaArgumentosNulosOVacios() {
+        assertThrows(IllegalArgumentException.class, () -> dao.existePorReferencia(null, "x"));
+        assertThrows(IllegalArgumentException.class, () -> dao.existePorReferencia(" ", "x"));
+        assertThrows(IllegalArgumentException.class, () -> dao.existePorReferencia("nombre", null));
     }
 
     // ---------------------------------------------------------------- flush
