@@ -73,6 +73,7 @@ final class ServidorEnMemoria {
         ResourceConfig config = new ResourceConfig();
         RECURSOS.forEach(config::register);
         config.register(ManejadorExcepciones.class);
+        config.register(ManejadorValidacion.class);
         config.register(new AbstractBinder() {
             @SuppressWarnings({"unchecked", "rawtypes"})
             private void enlazar(Object servicio) {

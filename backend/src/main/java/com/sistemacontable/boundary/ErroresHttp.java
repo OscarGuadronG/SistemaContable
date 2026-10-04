@@ -103,9 +103,22 @@ public final class ErroresHttp {
             if (estado >= 500) {
                 return Optional.of(interno(web));
             }
-            return Optional.of(new Traduccion(estado, ErrorDto.de("HTTP_" + estado, web.getMessage())));
+            // el mensaje del framework (p. ej. RESTEASY003210 con la URL) no se repite en la respuesta
+            return Optional.of(new Traduccion(estado, ErrorDto.de("HTTP_" + estado, mensajeHttp(estado))));
         }
         return Optional.empty();
+    }
+
+    private static String mensajeHttp(int estado) {
+        return switch (estado) {
+            case 401 -> "Se requiere autenticacion";
+            case 403 -> "Acceso denegado";
+            case 404 -> "Recurso no encontrado";
+            case 405 -> "Metodo HTTP no permitido para este recurso";
+            case 406 -> "No se puede responder en el formato solicitado";
+            case 415 -> "Tipo de contenido no soportado";
+            default -> "La solicitud no se pudo atender (HTTP " + estado + ")";
+        };
     }
 
     private static boolean esEnvoltorio(Throwable e) {
@@ -164,22 +177,31 @@ public final class ErroresHttp {
         return lista;
     }
 
-    /** Ruta de la propiedad sin los nodos de metodo y parametro (p. ej. crear.arg0.nombre pasa a nombre). */
+    /**
+     * Ruta de la propiedad sin los nodos de metodo y parametro, conservando el indice de las colecciones (por
+     * ejemplo {@code registrar.arg0.lineas[1].precio} pasa a {@code lineas[1].precio}).
+     */
     private static String campo(Path ruta) {
         if (ruta == null) {
             return "";
         }
-        List<String> nombres = new ArrayList<>();
+        StringBuilder campo = new StringBuilder();
         for (Path.Node nodo : ruta) {
             ElementKind tipo = nodo.getKind();
             if (tipo == ElementKind.METHOD || tipo == ElementKind.CONSTRUCTOR || tipo == ElementKind.PARAMETER
                     || tipo == ElementKind.RETURN_VALUE || tipo == ElementKind.CROSS_PARAMETER) {
                 continue;
             }
+            if (nodo.isInIterable() && campo.length() > 0) {
+                campo.append('[').append(nodo.getIndex() != null ? nodo.getIndex() : nodo.getKey()).append(']');
+            }
             if (nodo.getName() != null) {
-                nombres.add(nodo.getName());
+                if (campo.length() > 0) {
+                    campo.append('.');
+                }
+                campo.append(nodo.getName());
             }
         }
-        return String.join(".", nombres);
+        return campo.toString();
     }
 }

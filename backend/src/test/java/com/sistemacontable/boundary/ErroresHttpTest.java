@@ -106,6 +106,22 @@ class ErroresHttpTest {
         assertFalse(v.get(0).mensaje().isBlank());
     }
 
+    @Test
+    void laRutaDeUnaViolacionConserva_elIndiceDeLaLineaYOmiteMetodoYParametro() {
+        Validator validador = Validation.buildDefaultValidatorFactory().getValidator();
+        com.sistemacontable.boundary.dto.CompraRequest compra = new com.sistemacontable.boundary.dto.CompraRequest(1L, 2L,
+                null, null, java.util.Arrays.asList(
+                        new com.sistemacontable.boundary.dto.CompraRequest.Linea(1L, 1L, java.math.BigDecimal.ONE,
+                                java.math.BigDecimal.ONE),
+                        new com.sistemacontable.boundary.dto.CompraRequest.Linea(null, 1L, java.math.BigDecimal.ONE,
+                                null)));
+
+        Traduccion t = ErroresHttp.traducir(new ConstraintViolationException(validador.validate(compra)));
+
+        List<String> campos = t.cuerpo().violaciones().stream().map(ErrorDto.Violacion::campo).toList();
+        assertEquals(List.of("lineas[1].loteId", "lineas[1].precio"), campos);
+    }
+
     // --------------------------------------------------------------------------- envoltorios EJB/JTA
 
     @Test
@@ -247,6 +263,28 @@ class ErroresHttpTest {
         Traduccion t = ErroresHttp.traducir(new NotAllowedException("GET"));
 
         assertEquals("HTTP_405", t.cuerpo().codigo());
+        assertFalse(t.cuerpo().mensaje().isBlank());
+    }
+
+    @Test
+    void elMensajeDeUnaExcepcionWebDelFrameworkNoSeRepiteEnLaRespuesta() {
+        Traduccion noExiste = ErroresHttp.traducir(new NotFoundException(
+                "RESTEASY003210: Could not find resource for full path: http://host/api/nope"));
+        Traduccion noPermitido = ErroresHttp.traducir(new jakarta.ws.rs.WebApplicationException(
+                "RESTEASY003650: No resource method found for PUT, return 405 with Allow header", 405));
+
+        assertEquals("Recurso no encontrado", noExiste.cuerpo().mensaje());
+        assertEquals("Metodo HTTP no permitido para este recurso", noPermitido.cuerpo().mensaje());
+        assertFalse(noExiste.cuerpo().mensaje().toUpperCase().contains("RESTEASY"));
+    }
+
+    @Test
+    void unaExcepcionWebConEstadoSinTextoPropioTieneUnMensajeGenerico() {
+        Traduccion t = ErroresHttp.traducir(new jakarta.ws.rs.WebApplicationException(
+                jakarta.ws.rs.core.Response.status(409).build()));
+
+        assertEquals(409, t.estado());
+        assertEquals("HTTP_409", t.cuerpo().codigo());
         assertFalse(t.cuerpo().mensaje().isBlank());
     }
 
