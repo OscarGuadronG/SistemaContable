@@ -20,6 +20,9 @@
         <postgresql.version>42.7.4</postgresql.version>
         <eclipselink.version>4.0.4</eclipselink.version>
         <h2.version>2.2.224</h2.version>
+        <jersey.version>3.1.9</jersey.version>
+        <hibernate.validator.version>8.0.1.Final</hibernate.validator.version>
+        <expressly.version>5.0.0</expressly.version>
 
         <!-- Valor por defecto: JaCoCo lo reemplaza al preparar el agente. -->
         <argLine></argLine>
@@ -74,6 +77,46 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <version>${h2.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Cliente/servidor JAX-RS en memoria SOLO para probar los recursos REST (estados, cabeceras, JSON-B de
+             los records y ExceptionMapper) sin levantar Liberty. En produccion lo aporta webProfile-10.0. -->
+        <dependency>
+            <groupId>org.glassfish.jersey.test-framework</groupId>
+            <artifactId>jersey-test-framework-core</artifactId>
+            <version>${jersey.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jersey.test-framework.providers</groupId>
+            <artifactId>jersey-test-framework-provider-inmemory</artifactId>
+            <version>${jersey.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jersey.inject</groupId>
+            <artifactId>jersey-hk2</artifactId>
+            <version>${jersey.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jersey.media</groupId>
+            <artifactId>jersey-media-json-binding</artifactId>
+            <version>${jersey.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Bean Validation (implementacion) para probar las restricciones de los DTO de entrada. -->
+        <dependency>
+            <groupId>org.hibernate.validator</groupId>
+            <artifactId>hibernate-validator</artifactId>
+            <version>${hibernate.validator.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.expressly</groupId>
+            <artifactId>expressly</artifactId>
+            <version>${expressly.version}</version>
             <scope>test</scope>
         </dependency>
 
