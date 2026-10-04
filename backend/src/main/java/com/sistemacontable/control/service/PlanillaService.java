@@ -253,7 +253,7 @@ public class PlanillaService {
         return planillaDAO.buscarParaActualizar(id).orElseThrow(() -> new NoEncontradoException("Planilla", id));
     }
 
-    private PlanillaDetalle buscarDetalle(Long id) {
+    public PlanillaDetalle buscarDetalle(Long id) {
         return planillaDetalleDAO.buscarPorId(id).orElseThrow(() -> new NoEncontradoException("Detalle de planilla", id));
     }
 

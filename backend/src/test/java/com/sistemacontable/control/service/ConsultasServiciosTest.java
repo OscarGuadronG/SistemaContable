@@ -20,6 +20,7 @@ import com.sistemacontable.control.KardexDetalleDAO;
 import com.sistemacontable.control.LoteDAO;
 import com.sistemacontable.control.PartidaDAO;
 import com.sistemacontable.control.PlanillaDAO;
+import com.sistemacontable.control.PlanillaDetalleDAO;
 import com.sistemacontable.control.ProductoDAO;
 import com.sistemacontable.control.ProveedorDAO;
 import com.sistemacontable.control.TerceroDAO;
@@ -34,6 +35,7 @@ import com.sistemacontable.entity.Existencias;
 import com.sistemacontable.entity.Kardex;
 import com.sistemacontable.entity.KardexDetalle;
 import com.sistemacontable.entity.Lote;
+import com.sistemacontable.entity.PlanillaDetalle;
 import com.sistemacontable.entity.Venta;
 import com.sistemacontable.entity.VentaDetalle;
 import java.util.LinkedHashMap;
@@ -79,6 +81,8 @@ class ConsultasServiciosTest {
     AlmacenDAO almacenDAO;
     @Mock
     PlanillaDAO planillaDAO;
+    @Mock
+    PlanillaDetalleDAO planillaDetalleDAO;
     @Mock
     PartidaDAO partidaDAO;
     @Mock
@@ -265,5 +269,15 @@ class ConsultasServiciosTest {
         when(partidaDAO.findRange(0, 50)).thenReturn(filas);
 
         assertSame(filas, partidas.listar(0, 50));
+    }
+
+    @Test
+    void buscarDetalleDevuelveElDetalleOLanzaNoEncontrado() {
+        PlanillaDetalle detalle = new PlanillaDetalle();
+        when(planillaDetalleDAO.buscarPorId(1L)).thenReturn(Optional.of(detalle));
+        when(planillaDetalleDAO.buscarPorId(2L)).thenReturn(Optional.empty());
+
+        assertSame(detalle, planillas.buscarDetalle(1L));
+        assertThrows(NoEncontradoException.class, () -> planillas.buscarDetalle(2L));
     }
 }
