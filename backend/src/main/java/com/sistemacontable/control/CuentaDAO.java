@@ -32,6 +32,11 @@ public class CuentaDAO extends AbstractDAO<Cuenta, Long> {
                 .setParameter("codigo", codigo));
     }
 
+    /** Todo el catalogo de cuentas, ordenado por codigo (el catalogo es pequeno: sirve para la balanza). */
+    public List<Cuenta> findTodas() {
+        return em().createQuery("SELECT c FROM Cuenta c ORDER BY c.codigo", Cuenta.class).getResultList();
+    }
+
     /** Cuentas hijas directas de {@code padre}, ordenadas por codigo. */
     public List<Cuenta> findHijos(Cuenta padre) {
         requerir(padre, "padre");

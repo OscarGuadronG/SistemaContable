@@ -226,6 +226,7 @@ class ConsultasJpqlTest {
         assertEquals("Caja", dao.findByCodigo(11).orElseThrow().getNombre());
         assertTrue(dao.findByCodigo(999).isEmpty());
         assertEquals(List.of(caja), dao.findHijos(activo));
+        assertEquals(List.of(activo, caja, ventas), dao.findTodas());
         assertTrue(dao.findHijos(ventas).isEmpty());
         assertTrue(dao.existenHijosActivos(activo));
         assertFalse(dao.existenHijosActivos(ventas));

@@ -106,6 +106,15 @@ class CuentaDAOTest {
     }
 
     @Test
+    void findTodasOrdenaPorCodigo() {
+        Cuenta a = new Cuenta();
+        jpa.lista(Cuenta.class, List.of(a));
+
+        assertEquals(List.of(a), dao.findTodas());
+        assertTrue(jpa.jpql(Cuenta.class).contains("ORDER BY c.codigo"));
+    }
+
+    @Test
     void existenHijosActivosYTieneMovimientosRechazanNulos() {
         assertThrows(IllegalArgumentException.class, () -> dao.existenHijosActivos(null));
         assertThrows(IllegalArgumentException.class, () -> dao.tieneMovimientos(null));
