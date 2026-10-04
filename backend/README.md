@@ -137,8 +137,8 @@ Las excepciones que el contenedor envuelve en `EJBException` se desenvuelven: un
 | `/api/hello` | `GET` (verificación) |
 | `/api/departamentos`, `/api/empleados`, `/api/terceros`, `/api/clientes`, `/api/proveedores`, `/api/unidades-medida`, `/api/tipos-producto`, `/api/productos`, `/api/lotes`, `/api/almacenes` | `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (204; `422` si tiene referencias) |
 | `/api/cuentas` | `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `POST /{id}/activar`, `POST /{id}/desactivar` (sin `DELETE`) |
-| `/api/compras` | `GET`, `GET /{id}` (con líneas), `POST` (registra compra, existencias, kardex y partida) |
-| `/api/ventas` | `GET`, `GET /{id}` (con líneas), `POST` (registra venta, existencias, kardex, ingreso y costo de ventas) |
+| `/api/compras` | `GET`, `GET /{id}` (con líneas), `POST` (registra compra, existencias, kardex y partida; el cuerpo lleva `porcentajeContado`) |
+| `/api/ventas` | `GET`, `GET /{id}` (con líneas), `POST` (registra venta, existencias, kardex, ingreso y costo de ventas; el cuerpo lleva `porcentajeContado`) |
 | `/api/traslados` | `POST` (el movimiento se consulta en `/api/kardex/{id}`, indicado en `Location`) |
 | `/api/ajustes` | `POST` (cantidad con signo y motivo; el movimiento se consulta en `/api/kardex/{id}`) |
 | `/api/kardex` | `GET`, `GET /{id}` (con líneas); solo lectura |
@@ -151,6 +151,15 @@ Las excepciones que el contenedor envuelve en `EJBException` se desenvuelven: un
 | `/api/planillas/detalles/{detalleId}` | `GET`, `PUT`, `DELETE` (solo planillas Pendiente) |
 | `/api/planillas/{id}/calculo` | `GET` (calcula sin escribir) |
 | `/api/planillas/{id}/pagar` | `POST` (pasa a Pagado y registra la partida de egreso) |
+
+**Forma de pago de compras y ventas.** No se guarda en la base de datos: el cuerpo de `POST /api/compras` y
+`POST /api/ventas` lleva un `porcentajeContado` obligatorio (0 a 100, ambos incluidos; `400` si falta o está fuera de
+rango). Con el total ya con IVA, `contado = redondeo(total × porcentajeContado / 100)` (HALF_UP, 2 decimales) y
+`crédito = total − contado`, así la partida cuadra al centavo. El contado va a `cuenta.caja` y el crédito a
+`cuenta.proveedores` (compra) o `cuenta.clientes` (venta); nunca se genera una línea en cero y una cuenta de pago solo se
+exige si su línea se genera (con 100 % de contado no hace falta `cuenta.clientes`/`cuenta.proveedores`; con 0 %, no
+hace falta `cuenta.caja`). Como la forma de pago no queda registrada, saldar después lo que quedó a crédito no está
+soportado; hay una propuesta no aplicada en [`../docs/recomendaciones-bd.md`](../docs/recomendaciones-bd.md).
 
 Los listados de compras, ventas, kardex y partidas **no incluyen las líneas** (se omite el campo `lineas`); `GET /{id}`
 sí las incluye.
@@ -165,15 +174,14 @@ variable de entorno (`CUENTA_INVENTARIO=1204`; mayúsculas y puntos a guion bajo
 
 | Clave | Valor de referencia | Uso |
 |---|---|---|
-| `cuenta.caja` / `cuenta.bancos` / `cuenta.clientes` | 1101 / 1102 / 1103 | Cobro de ventas (Caja o Clientes) y pago de planillas (Bancos) |
+| `cuenta.caja` / `cuenta.bancos` / `cuenta.clientes` | 1101 / 1102 / 1103 | Caja: parte de contado de compras y ventas; Clientes: parte a crédito de ventas; Bancos: pago de planillas |
 | `cuenta.inventario` | 1104 | Compras (debe), costo de ventas (haber), ajustes |
 | `cuenta.iva.credito` / `cuenta.iva.debito` | 1105 / 2102 | IVA de compras y de ventas |
-| `cuenta.proveedores` | 2101 | Compras (haber) |
+| `cuenta.proveedores` | 2101 | Parte a crédito de las compras (haber) |
 | `cuenta.retenciones.isss` / `.afp` / `.renta` | 2103 / 2104 / 2105 | Retenciones de la planilla |
 | `cuenta.ventas` / `cuenta.costo.ventas` | 4101 / 5101 | Ingreso y costo de las ventas |
 | `cuenta.sueldos` | 5201 | Gasto de sueldos de la planilla |
 | `cuenta.ajuste.inventario` | 5301 | Contrapartida de los ajustes (si `ajuste.genera.partida=true`) |
-| `venta.contado` | `true` | Cobro al contado (Caja) o a crédito (Clientes) |
 | `ajuste.genera.partida` | `false` | Si un ajuste de inventario genera partida |
 | `iva.tasa` | `0.13` | IVA sobre el subtotal |
 | `isss.tasa.empleado` / `isss.techo` | `0.03` / `1000.00` | ISSS del empleado y techo mensual |

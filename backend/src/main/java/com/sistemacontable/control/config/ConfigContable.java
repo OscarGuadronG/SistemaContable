@@ -39,7 +39,6 @@ public class ConfigContable {
     public static final String CUENTA_RETENCIONES_RENTA = "cuenta.retenciones.renta";
     public static final String CUENTA_BANCOS = "cuenta.bancos";
     public static final String CUENTA_AJUSTE_INVENTARIO = "cuenta.ajuste.inventario";
-    public static final String VENTA_CONTADO = "venta.contado";
     public static final String AJUSTE_GENERA_PARTIDA = "ajuste.genera.partida";
     public static final String IVA_TASA = "iva.tasa";
     public static final String ISSS_TASA_EMPLEADO = "isss.tasa.empleado";
