@@ -379,6 +379,21 @@ class ConsultasJpqlTest {
     }
 
     @Test
+    void planillaBuscarParaActualizarBloqueaLaFila() {
+        Planilla pl = new Planilla();
+        OffsetDateTime ahora = OffsetDateTime.now();
+        pl.setFechaInicio(ahora);
+        pl.setFechaFin(ahora);
+        pl.setFechaPago(ahora);
+        em.persist(pl);
+        em.flush();
+        PlanillaDAO dao = dao(new PlanillaDAO());
+
+        assertEquals(pl, dao.buscarParaActualizar(pl.getId()).orElseThrow());
+        assertTrue(dao.buscarParaActualizar(-1L).isEmpty());
+    }
+
+    @Test
     void planillaDetalleFinders() {
         Planilla pl = new Planilla();
         OffsetDateTime ahora = OffsetDateTime.now();

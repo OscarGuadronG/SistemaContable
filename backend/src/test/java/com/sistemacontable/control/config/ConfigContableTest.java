@@ -85,6 +85,20 @@ class ConfigContableTest {
     }
 
     @Test
+    void tieneIndicaSiLaClaveEstaConfiguradaEnCualquierFuente() {
+        ConfigContable c = crear("a.b", "1", "vacia", "  ");
+        entorno.put("C_D", "2");
+        sistema.put("e.f", "3");
+
+        assertTrue(c.tiene("a.b"));
+        assertTrue(c.tiene("c.d"));
+        assertTrue(c.tiene("e.f"));
+        assertFalse(c.tiene("no.existe"));
+        assertFalse(c.tiene("vacia"));
+        assertThrows(IllegalArgumentException.class, () -> c.tiene(null));
+    }
+
+    @Test
     void claveNulaOVaciaEsArgumentoInvalido() {
         ConfigContable c = crear();
 

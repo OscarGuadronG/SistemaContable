@@ -156,4 +156,42 @@ class AsientosTest {
     void ajusteDeValorCeroNoGeneraAsiento() {
         assertTrue(Asientos.ajuste(inventario, ajuste, BigDecimal.ZERO, true).isEmpty());
     }
+
+    // --------------------------------------------------------------------------------------- planilla
+
+    private final Cuenta sueldos = Fabrica.cuenta(9, 5201);
+    private final Cuenta retIsss = Fabrica.cuenta(10, 2103, NaturalezaCuenta.Acreedora, true, true);
+    private final Cuenta retAfp = Fabrica.cuenta(11, 2104, NaturalezaCuenta.Acreedora, true, true);
+    private final Cuenta retRenta = Fabrica.cuenta(12, 2105, NaturalezaCuenta.Acreedora, true, true);
+    private final Cuenta bancos = Fabrica.cuenta(13, 1102);
+
+    @Test
+    void planillaDebitaSueldosYAcreditaRetencionesYBancosPorElLiquido() {
+        List<LineaAsiento> lineas = Asientos.planilla(sueldos, retIsss, retAfp, retRenta, bancos,
+                bd("1600"), bd("48"), bd("116"), bd("84.77"), bd("1351.23"));
+
+        assertEquals(5, lineas.size());
+        assertEquals(bd("1600.00"), cargoDe(lineas, sueldos));
+        assertEquals(bd("48.00"), abonoDe(lineas, retIsss));
+        assertEquals(bd("116.00"), abonoDe(lineas, retAfp));
+        assertEquals(bd("84.77"), abonoDe(lineas, retRenta));
+        assertEquals(bd("1351.23"), abonoDe(lineas, bancos));
+        ReglasPartida.validar(lineas);
+    }
+
+    @Test
+    void planillaSinRentaOmiteLaLineaDeRenta() {
+        List<LineaAsiento> lineas = Asientos.planilla(sueldos, retIsss, retAfp, retRenta, bancos,
+                bd("400"), bd("12"), bd("29"), BigDecimal.ZERO, bd("359"));
+
+        assertEquals(4, lineas.size());
+        assertTrue(lineas.stream().noneMatch(l -> l.cuenta() == retRenta));
+        ReglasPartida.validar(lineas);
+    }
+
+    @Test
+    void planillaSinDevengadoNoGeneraAsiento() {
+        assertTrue(Asientos.planilla(sueldos, retIsss, retAfp, retRenta, bancos, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO).isEmpty());
+    }
 }

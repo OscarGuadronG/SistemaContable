@@ -58,6 +58,22 @@ public final class Asientos {
         return lineas;
     }
 
+    /**
+     * Pago de planilla: Sueldos (devengado) al debe; retenciones de ISSS, AFP y renta, y Bancos por el liquido, al
+     * haber.
+     */
+    public static List<LineaAsiento> planilla(Cuenta sueldos, Cuenta retencionIsss, Cuenta retencionAfp,
+            Cuenta retencionRenta, Cuenta bancos, BigDecimal devengado, BigDecimal isss, BigDecimal afp,
+            BigDecimal renta, BigDecimal liquido) {
+        List<LineaAsiento> lineas = new ArrayList<>();
+        cargo(lineas, sueldos, Dinero.redondear(devengado));
+        abono(lineas, retencionIsss, Dinero.redondear(isss));
+        abono(lineas, retencionAfp, Dinero.redondear(afp));
+        abono(lineas, retencionRenta, Dinero.redondear(renta));
+        abono(lineas, bancos, Dinero.redondear(liquido));
+        return lineas;
+    }
+
     private static void cargo(List<LineaAsiento> lineas, Cuenta cuenta, BigDecimal monto) {
         if (monto.signum() > 0) {
             lineas.add(LineaAsiento.cargo(cuenta, monto));

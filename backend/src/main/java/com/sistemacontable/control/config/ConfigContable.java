@@ -79,6 +79,18 @@ public class ConfigContable {
         this.base = cargadas;
     }
 
+    /** Indica si la clave tiene un valor no vacio en alguna fuente (sistema, entorno o archivo). */
+    public boolean tiene(String clave) {
+        if (clave == null || clave.isBlank()) {
+            throw new IllegalArgumentException("La clave de configuracion es obligatoria");
+        }
+        String valor = valorSobreescrito(clave);
+        if (valor == null) {
+            valor = base.getProperty(clave);
+        }
+        return valor != null && !valor.isBlank();
+    }
+
     public String getString(String clave) {
         if (clave == null || clave.isBlank()) {
             throw new IllegalArgumentException("La clave de configuracion es obligatoria");
