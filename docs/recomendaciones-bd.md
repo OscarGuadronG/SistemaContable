@@ -15,6 +15,7 @@ Resumen por prioridad:
 | Media | `UNIQUE (planilla_id, empleado_id)` en `planilla_detalle` |
 | Media | Índices sobre las columnas de clave foránea que usan las consultas |
 | Media | Otras restricciones de coherencia (`partida`, `kardex`, `planilla`, `cuentas`) |
+| Media | Registrar la forma de pago (`porcentaje_contado`) y los cobros/pagos para saldar el crédito (opción b, **no aplicada**) |
 | Informativa | Los enums de PostgreSQL requieren `stringtype=unspecified` en el driver |
 | Informativa | Exposición de `public` en Supabase (RLS) |
 
@@ -225,3 +226,90 @@ Los importes y cantidades son `numeric` sin precisión. El backend redondea los 
 sola función de redondeo `HALF_UP`) y el costo unitario a 4. Si se quiere que la base lo refuerce, una opción es
 `numeric(18,4)` para cantidades y costos y `numeric(18,2)` para importes de partidas; cambiar el tipo de columnas con
 datos exige una migración planificada y no es necesario para el funcionamiento actual.
+
+## 9. Forma de pago y saldos de clientes/proveedores (media, opción (b) NO aplicada)
+
+**Decisión vigente (opción a).** La forma de pago de una compra o venta **no se guarda** en la base de datos: viaja en la
+orden de cada operación como `porcentajeContado` (0 a 100) y solo decide con qué cuentas se arma la partida: la parte de
+contado va a `cuenta.caja`, la parte a crédito a `cuenta.clientes` (venta) o `cuenta.proveedores` (compra). Es lo que
+implementa el backend hoy y **no requiere ningún cambio de esquema**.
+
+**Qué se pierde con esa decisión.**
+
+- Tras registrar el documento no queda rastro del porcentaje: la `venta`/`compra` no dice si fue al contado o a crédito,
+  hay que deducirlo de las líneas de su partida (Caja frente a Clientes/Proveedores).
+- No hay forma de **saldar** lo que quedó a crédito: el backend no registra cobros a clientes ni pagos a proveedores, así
+  que los saldos de `cuenta.clientes` y `cuenta.proveedores` solo crecen salvo que se cancelen con una partida manual
+  (`POST /api/partidas`), sin vínculo con el documento que originó la deuda.
+
+**Alternativa (b), propuesta y no aplicada.** Guardar el porcentaje en cada documento y modelar los cobros y pagos. Las
+sentencias son solo texto de propuesta; habría que revisarlas, probarlas en una copia y adaptar el backend (entidades,
+servicios y DTO) antes de aplicarlas.
+
+```sql
+-- 1) Porcentaje de contado de cada documento (0 a 100). Los documentos ya existentes no lo tienen registrado:
+--    se rellena a partir de su partida (ver verificación) y recién entonces se exige NOT NULL.
+ALTER TABLE public.ventas
+  ADD COLUMN porcentaje_contado numeric CHECK (porcentaje_contado BETWEEN 0 AND 100);
+ALTER TABLE public.compra
+  ADD COLUMN porcentaje_contado numeric CHECK (porcentaje_contado BETWEEN 0 AND 100);
+
+-- 2) Cobros a clientes: cada fila salda (parcial o totalmente) lo que una venta dejó a crédito.
+CREATE TABLE public.cobro (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  id_venta bigint NOT NULL,
+  fecha date NOT NULL DEFAULT CURRENT_DATE,
+  monto numeric NOT NULL CHECK (monto > 0),
+  id_cuenta bigint NOT NULL,   -- cuenta de caja o bancos que recibe el dinero
+  id_partida bigint,           -- partida que contabiliza el cobro (Caja/Bancos al debe, Clientes al haber)
+  descripcion character varying,
+  CONSTRAINT cobro_pkey PRIMARY KEY (id),
+  CONSTRAINT cobro_id_venta_fkey   FOREIGN KEY (id_venta)   REFERENCES public.ventas(id),
+  CONSTRAINT cobro_id_cuenta_fkey  FOREIGN KEY (id_cuenta)  REFERENCES public.cuentas(id),
+  CONSTRAINT cobro_id_partida_fkey FOREIGN KEY (id_partida) REFERENCES public.partida(id)
+);
+
+-- 3) Pagos a proveedores: lo mismo para las compras a crédito.
+CREATE TABLE public.pago_proveedor (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  id_compra bigint NOT NULL,
+  fecha date NOT NULL DEFAULT CURRENT_DATE,
+  monto numeric NOT NULL CHECK (monto > 0),
+  id_cuenta bigint NOT NULL,   -- cuenta de caja o bancos de la que sale el dinero
+  id_partida bigint,           -- partida que contabiliza el pago (Proveedores al debe, Caja/Bancos al haber)
+  descripcion character varying,
+  CONSTRAINT pago_proveedor_pkey PRIMARY KEY (id),
+  CONSTRAINT pago_proveedor_id_compra_fkey  FOREIGN KEY (id_compra)  REFERENCES public.compra(id),
+  CONSTRAINT pago_proveedor_id_cuenta_fkey  FOREIGN KEY (id_cuenta)  REFERENCES public.cuentas(id),
+  CONSTRAINT pago_proveedor_id_partida_fkey FOREIGN KEY (id_partida) REFERENCES public.partida(id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_cobro_id_venta           ON public.cobro (id_venta);
+CREATE INDEX IF NOT EXISTS ix_pago_proveedor_id_compra ON public.pago_proveedor (id_compra);
+```
+
+**Reglas que tendría que validar el servicio** (la base no puede expresarlas con un `CHECK`): la suma de cobros de una
+venta no puede superar su crédito (`total - round(total x porcentaje_contado / 100)`), y lo mismo para los pagos de una
+compra; cada cobro o pago debe generar su partida cuadrada en la misma transacción.
+
+**Verificación previa para rellenar `porcentaje_contado`** de los documentos existentes (el porcentaje real no se
+guardó; esto solo lo aproxima por la cuenta que usó la partida, con el código de referencia de `contabilidad.properties`
+que debe contrastarse con el catálogo real):
+
+```sql
+-- Ventas: 0 si cobraron a Clientes (1103), 100 si a Caja (1101); las mixtas requieren revisión manual.
+SELECT v.id,
+       bool_or(c.codigo = 1101) AS usa_caja,
+       bool_or(c.codigo = 1103) AS usa_clientes
+FROM public.ventas v
+JOIN public.partida p          ON p.id_venta = v.id
+JOIN public.partida_detalle d  ON d.id_partida = p.id
+JOIN public.cuentas c          ON c.id = d.id_cuenta
+GROUP BY v.id;
+```
+
+Antes de esta versión del backend, toda compra se registraba a crédito (Proveedores) y las ventas, por defecto, al
+contado (Caja): si ese era el uso real, el relleno equivale a `0` para las compras y `100` para las ventas existentes.
+
+> Nota sobre la propuesta de la sección 1: la restricción `UNIQUE (id_lote, id_almacen)` de `existencias` ya está
+> documentada arriba y sigue siendo la recomendación de prioridad alta.
