@@ -54,8 +54,8 @@
 - [x] **T2 — Entidades (22 tablas) + 5 enums** con `equals/hashCode` por id, validaciones Bean Validation y pruebas de mapeo básicas.
 - [x] **T3 — DAOs:** `AbstractDAO<T,ID>` + un DAO `@Stateless` por entidad con las consultas específicas necesarias (con pruebas Mockito).
 - [x] **T4 — Servicios** de la sección anterior, **TDD estricto**. (5 commits `feat(service)`, ver evidencia)
-- [ ] **T5 — REST:** DTOs, mappers, recursos, `ExceptionMapper`, paginación correcta.
-- [ ] **T6 — Cierre:** `./mvnw verify` verde, README del backend con arranque (`./mvnw liberty:dev`), `docs/recomendaciones-bd.md`.
+- [x] **T5 — REST:** DTOs, mappers, recursos, `ExceptionMapper`, paginación correcta. (5 commits `feat(rest)`/`feat(service)`, ver evidencia)
+- [x] **T6 — Cierre:** `./mvnw verify` verde, README del backend con arranque (`./mvnw liberty:dev`), `docs/recomendaciones-bd.md`. (commit `docs: cierre de la feature capa-datos-negocio`)
 
 ## Criterios de aceptación
 
@@ -79,3 +79,28 @@
   - `1355b45` Empleado/Departamento/Cliente/Proveedor/Tercero/UnidadMedida/TipoProducto/Producto/Lote/Almacén (`AbstractDAO.existePorReferencia`, validada contra el metamodelo), `EstructuraServiciosTest`, `ReferenciasH2Test`. 570 pruebas en total, 0 fallos.
   - Decisiones (documentadas en el Javadoc de cada servicio): ver informe final de la tarea. Las cuentas y tasas de `contabilidad.properties` siguen siendo **valores de referencia a verificar** (catálogo real y normativa ISSS/AFP/renta/horas extra).
   - Nota de proceso: el ciclo RED→GREEN se verificó con ejecución previa en todos los grupos salvo en los puros de inventario del tercer commit (`ReglasKardexTest`, `AsientosTest`, `ExistenciasServiceTest`, `KardexServiceTest`), que se escribieron antes que su código pero cuyo fallo previo (compilación) no se ejecutó por separado.
+- **T5** (paquete `com.sistemacontable.boundary`, `boundary.dto` 42 records, `boundary.mapper` 5 clases; 20 recursos `@Path` + `HelloResource`; `RestApplication` sigue en `/api`). `./mvnw -q verify` verde tras cada commit:
+  - `5ddf35d` `Paginacion` (first >= 0, 1 <= max <= 100; `first=50,max=50` válido), `Parametros.fecha`, `ErrorDto`, `ErroresHttp` (traducción pura) y `ManejadorExcepciones`; dependencias de prueba (`test`): Jersey 3.1.9 (servidor JAX-RS en memoria, JSON-B), Hibernate Validator 8.0.1 + Expressly. RED observado (compilación) antes del código; 49 pruebas nuevas.
+  - `e11f7db` Lecturas que necesita REST en los servicios: `contar()` en 17 servicios, `buscarPorId`/`detalles`/`listar` en compras, ventas, kardex, existencias; `listar` en partidas y lotes (`ConsultasServiciosTest`, RED observado).
+  - `ea2d8f2` DTOs de entrada (`*Request`, Bean Validation solo estructural, `aCmd()`) y de salida (`*Dto`), mapeadores puros (`MapeadoresTest` con RED observado; `PeticionesTest` con Hibernate Validator real).
+  - `c62b7e2` Recursos (todos `@RequestScoped @Transactional`, solo inyectan servicios) + `RecursosRestTest` (39 pruebas contra Jersey en memoria: estados, `Location`, `Total-Records`, 405, 415, JSON-B, EJBException desenvuelta) + `RecursosEstructuraTest` (103 comprobaciones de arquitectura: sin DAOs, sin JPA, `@Valid`, solo lectura/inmutables).
+  - `368549e` Hallazgos del arranque real en Liberty: RESTEasy responde las violaciones de Bean Validation en texto plano y repite su mensaje interno (con la URL) en 404/405; se añadió `ManejadorValidacion`, mensajes HTTP genéricos y la ruta de la violación conserva el índice (`lineas[1].precio`). RED observado en las pruebas nuevas.
+  - Totales: `./mvnw -q verify` = **801 pruebas, 0 fallos, 0 errores, 0 omitidas**; `target/sistema-contable.war` sin Jersey/Yasson/Hibernate/H2/EclipseLink/driver dentro.
+  - **Liberty**: `./mvnw liberty:create liberty:install-feature` funcionó (descarga ~2,5 min); `./mvnw liberty:deploy liberty:start` arrancó el servidor `contable` (kernel 26.0.0.9, RESTEasy) y desplegó la aplicación en `http://localhost:9080/sistema-contable/` **sin base de datos**; con `curl` se comprobó: `GET /api/hello` 200; `?max=0` 400; JSON malformado y enum desconocido 400 (`JSON_INVALIDO`); cuerpo incompleto 400 (`VALIDACION` con lista); `PUT /partidas/1` 405 con `Allow`; ruta inexistente 404; un POST válido llega a la base y, al no haberla, responde 500 `ERROR_INTERNO` con referencia (el log del servidor muestra la causa `SQLState 08001`, sin filtrarse al cliente). El servidor se detuvo con `liberty:stop`. **No se ejecutó `liberty:dev` ni nada contra PostgreSQL.**
+- **T6**: `docs/recomendaciones-bd.md` (UNIQUE de `existencias`, CHECK de `partida_detalle`, UNIQUE de `planilla_detalle`, índices FK, CHECK de coherencia, `stringtype=unspecified`, RLS de Supabase; todo como propuesta, nada aplicado) y `backend/README.md` (variables de BD, arranque, pruebas, paquetes, API, cuentas/tasas a verificar, límites).
+
+## Hallazgos / pendientes
+
+1. **Base de datos real sin ejercitar.** Nada se ha ejecutado contra PostgreSQL: enums con `stringType=unspecified`, JPQL en PostgreSQL, el esquema real, la serialización de DTO con datos y el rendimiento. Primera prueba recomendada: crear un departamento, un empleado y una partida.
+2. **Valores de referencia a verificar por el usuario** (`contabilidad.properties`): todos los códigos de cuenta (1101–5301), IVA 13 %, ISSS 3 % con techo 1000.00, AFP 7,25 %, recargos de horas extra (1.00/1.25), 240 horas y 30 días por mes y la tabla de renta de 4 tramos. Las cuentas deben existir, estar activas y ser imputables en la BD real; si no, compras/ventas/planillas devuelven 422 sin escribir.
+3. **Restricciones e índices propuestos y no aplicados** (`docs/recomendaciones-bd.md`): sobre todo `UNIQUE (id_lote, id_almacen)` en `existencias` (el bloqueo `FOR UPDATE` no cubre la primera inserción simultánea) y el CHECK de un solo importe en `partida_detalle`.
+4. **Sin autenticación ni autorización**: la API está abierta; no exponerla tal cual.
+5. **Diseño de transacciones REST**: los recursos son `@RequestScoped @Transactional` para mapear a DTO con las relaciones perezosas dentro de la transacción; se comprobó que Liberty la crea y la deja pasar hasta el acceso a datos, pero no con datos reales. Alternativa si diera problemas: devolver modelos de lectura desde los servicios.
+6. **Rendimiento de listados**: cada fila puede cargar relaciones perezosas (consultas adicionales); páginas de hasta 100 filas. Optimizable con `JOIN FETCH`/lotes de EclipseLink. Los listados no admiten filtros (solo la balanza por fechas) y ordenan por id.
+7. **Rutas en plural** (`/departamentos`, `/compras`, ...), según la lista del encargo, aunque el texto del encargo hablaba de "plural-less"; renombrar es trivial (`@Path`).
+8. **Cambios en servicios de T4** para soportar REST: `contar()`, lecturas por id/lista/detalles y `PlanillaService.buscarDetalle` pasó de privado a público (todos con pruebas).
+9. **Mensajes de Bean Validation en inglés** por defecto (`must not be null`); localizables con `ValidationMessages.properties`.
+10. **Conexión caída = 500 genérico** (no 503); se podría distinguir con un reintento o una comprobación de salud.
+11. **Proceso**: el código generado de DTOs y recursos precedió a sus pruebas de comportamiento (`PeticionesTest`, `RecursosRestTest`, `RecursosEstructuraTest`), que pasaron a la primera; la disciplina RED→GREEN sí se aplicó en paginación, parámetros, traducción de errores, mapeadores, lecturas de servicios y en los cambios del commit `368549e`.
+12. **`backend/.env.example`**: no se leyó ni se modificó en T5/T6; conviene revisar su coherencia con `server.env.example`.
+13. **Artefactos locales**: `target/liberty` (~cientos de MB) está bajo `target/` (ignorado por git); se puede borrar.
