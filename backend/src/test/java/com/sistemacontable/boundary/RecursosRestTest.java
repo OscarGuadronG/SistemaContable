@@ -24,9 +24,13 @@ import com.sistemacontable.control.service.cmd.CompraCmd;
 import com.sistemacontable.control.service.cmd.CuentaCmd;
 import com.sistemacontable.control.service.cmd.DepartamentoCmd;
 import com.sistemacontable.control.service.cmd.LineaCompraCmd;
+import com.sistemacontable.control.service.cmd.LineaVentaCmd;
+import com.sistemacontable.control.service.cmd.VentaCmd;
 import com.sistemacontable.control.service.cmd.PartidaCmd;
 import com.sistemacontable.control.service.cmd.TrasladoCmd;
 import com.sistemacontable.entity.Almacen;
+import com.sistemacontable.control.service.ResultadoVenta;
+import com.sistemacontable.entity.Cliente;
 import com.sistemacontable.entity.Compra;
 import com.sistemacontable.entity.CompraDetalle;
 import com.sistemacontable.entity.Cuenta;
@@ -40,6 +44,7 @@ import com.sistemacontable.entity.Partida;
 import com.sistemacontable.entity.PartidaDetalle;
 import com.sistemacontable.entity.Planilla;
 import com.sistemacontable.entity.Proveedor;
+import com.sistemacontable.entity.Venta;
 import com.sistemacontable.entity.enums.NaturalezaCuenta;
 import com.sistemacontable.entity.enums.TipoMovimiento;
 import com.sistemacontable.entity.enums.TipoPartida;
@@ -401,7 +406,7 @@ class RecursosRestTest {
                 new BigDecimal("2.67"), new BigDecimal("23.17")));
 
         Response r = s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"fecha\":\"2026-03-01\","
-                + "\"lineas\":[{\"loteId\":5,\"almacenId\":2,\"cantidad\":2,\"precio\":10.25}]}");
+                + "\"porcentajeContado\":40,\"lineas\":[{\"loteId\":5,\"almacenId\":2,\"cantidad\":2,\"precio\":10.25}]}");
 
         assertEquals(201, r.getStatus());
         assertTrue(r.getHeaderString("Location").endsWith("/compras/10"), r.getHeaderString("Location"));
@@ -415,7 +420,30 @@ class RecursosRestTest {
         ArgumentCaptor<CompraCmd> cmd = ArgumentCaptor.forClass(CompraCmd.class);
         verify(s.compras).registrar(cmd.capture());
         assertEquals(new CompraCmd(3L, 4L, LocalDate.of(2026, 3, 1), null,
+                new BigDecimal("40"),
                 List.of(new LineaCompraCmd(5L, 2L, new BigDecimal("2"), new BigDecimal("10.25")))), cmd.getValue());
+    }
+
+    @Test
+    void registrarUnaVentaPasaElPorcentajeDeContadoAlComando() {
+        Venta venta = conId(new Venta(), 11L);
+        venta.setFecha(LocalDate.of(2026, 3, 1));
+        venta.setCliente(conId(new Cliente(), 3L));
+        venta.setEmpleado(conId(new Empleado(), 4L));
+        when(s.ventas.registrar(any(VentaCmd.class))).thenReturn(new ResultadoVenta(venta, List.of(), List.of(),
+                conId(new Partida(), 51L), new BigDecimal("20.00"), new BigDecimal("2.60"), new BigDecimal("22.60"),
+                new BigDecimal("8.00")));
+
+        Response r = s.post("/ventas", "{\"clienteId\":3,\"empleadoId\":4,\"fecha\":\"2026-03-01\","
+                + "\"porcentajeContado\":33.33,\"lineas\":[{\"loteId\":5,\"almacenId\":2,\"cantidad\":2,"
+                + "\"precio\":10}]}");
+
+        assertEquals(201, r.getStatus());
+        assertEquals(51, json(r).getInt("partidaId"));
+        ArgumentCaptor<VentaCmd> cmd = ArgumentCaptor.forClass(VentaCmd.class);
+        verify(s.ventas).registrar(cmd.capture());
+        assertEquals(new VentaCmd(3L, 4L, LocalDate.of(2026, 3, 1), null, new BigDecimal("33.33"),
+                List.of(new LineaVentaCmd(5L, 2L, new BigDecimal("2"), new BigDecimal("10")))), cmd.getValue());
     }
 
     @Test
@@ -423,7 +451,7 @@ class RecursosRestTest {
         when(s.compras.registrar(any())).thenThrow(new EJBException(
                 new ReglaNegocioException("El almacen 2 esta deshabilitado")));
 
-        Response r = s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4}");
+        Response r = s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"porcentajeContado\":0}");
 
         assertEquals(422, r.getStatus());
         JsonObject error = json(r);
@@ -435,7 +463,7 @@ class RecursosRestTest {
     void unNoEncontradoEnvueltoPorElContenedorSigueSiendo404() {
         when(s.compras.registrar(any())).thenThrow(new EJBException(new NoEncontradoException("Proveedor", 3L)));
 
-        assertEquals(404, s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4}").getStatus());
+        assertEquals(404, s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"porcentajeContado\":0}").getStatus());
     }
 
     @Test
@@ -443,7 +471,7 @@ class RecursosRestTest {
         when(s.compras.registrar(any())).thenThrow(new RuntimeException(
                 "ERROR: relation \"public.compra\" does not exist; INSERT INTO compra ..."));
 
-        Response r = s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4}");
+        Response r = s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"porcentajeContado\":0}");
 
         assertEquals(500, r.getStatus());
         String cuerpo = r.readEntity(String.class);

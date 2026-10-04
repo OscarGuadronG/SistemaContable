@@ -36,8 +36,18 @@ import java.util.List;
  * activas e imputables; asiento cuadrado). Despues se escribe: compra, y por cada linea su {@code compra_detalle},
  * el aumento de existencias, y un {@code kardex} {@code Entrada} (destino = almacen, id_compra) con su
  * {@code kardex_detalle} (precio_costo = precio de compra); al final la partida {@code Diario}: Inventario e IVA
- * credito fiscal al debe, Proveedores (total) al haber. El IVA es {@code iva.tasa} sobre el subtotal. Una compra de
- * importe total cero actualiza stock y kardex pero no genera partida (no hay nada que contabilizar).</p>
+ * credito fiscal al debe; al haber, Caja ({@code cuenta.caja}) por la parte de contado y Proveedores por la parte a
+ * credito. El IVA es {@code iva.tasa} sobre el subtotal. Una compra de importe total cero actualiza stock y kardex
+ * pero no genera partida (no hay nada que contabilizar).</p>
+ *
+ * <p><b>Forma de pago:</b> no se guarda en la base de datos; viaja en la orden como {@code porcentajeContado}
+ * (obligatorio, 0 a 100 inclusive; si es nulo o esta fuera de rango se rechaza con {@code ReglaNegocioException}
+ * antes de consultar o escribir nada). Primero se calcula el total con IVA y luego
+ * {@code contado = round(total x porcentaje / 100)} (HALF_UP, 2 decimales, solo via {@link Dinero}) y
+ * {@code credito = total - contado}, de modo que la partida cuadra al centavo. Nunca se genera una linea de importe
+ * cero, y una cuenta de pago solo se exige cuando su linea se genera: con 100 % de contado no hace falta
+ * {@code cuenta.proveedores}, con 0 % no hace falta {@code cuenta.caja}. El contado sale siempre de Caja (no se usa
+ * {@code cuenta.bancos}, reservada al pago de planilla).</p>
  */
 @Stateless
 @LocalBean
@@ -88,6 +98,7 @@ public class CompraService {
         if (cmd == null) {
             throw new ReglaNegocioException("La compra es obligatoria");
         }
+        PagoDocumento.validarPorcentaje(cmd.porcentajeContado());
         if (cmd.proveedorId() == null) {
             throw new ReglaNegocioException("El proveedor de la compra es obligatorio");
         }
@@ -119,8 +130,11 @@ public class CompraService {
                 config.getBigDecimal(ConfigContable.IVA_TASA));
         Cuenta inventario = partidaService.cuentaConfigurada(ConfigContable.CUENTA_INVENTARIO);
         Cuenta ivaCredito = partidaService.cuentaConfigurada(ConfigContable.CUENTA_IVA_CREDITO);
-        Cuenta proveedores = partidaService.cuentaConfigurada(ConfigContable.CUENTA_PROVEEDORES);
-        List<LineaAsiento> asiento = Asientos.compra(inventario, ivaCredito, proveedores, totales);
+        PagoDocumento pago = PagoDocumento.dividir(totales.total(), cmd.porcentajeContado());
+        Cuenta caja = pago.contado().signum() > 0 ? partidaService.cuentaConfigurada(ConfigContable.CUENTA_CAJA) : null;
+        Cuenta proveedores = pago.credito().signum() > 0
+                ? partidaService.cuentaConfigurada(ConfigContable.CUENTA_PROVEEDORES) : null;
+        List<LineaAsiento> asiento = Asientos.compra(inventario, ivaCredito, caja, proveedores, totales, pago);
         if (!asiento.isEmpty()) {
             ReglasPartida.validar(asiento);
         }

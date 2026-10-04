@@ -16,6 +16,7 @@ class AsientosTest {
     private final Cuenta ivaCredito = Fabrica.cuenta(2, 1105);
     private final Cuenta proveedores = Fabrica.cuenta(3, 2101, NaturalezaCuenta.Acreedora, true, true);
     private final Cuenta caja = Fabrica.cuenta(4, 1101);
+    private final Cuenta clientes = Fabrica.cuenta(14, 1103);
     private final Cuenta ventas = Fabrica.cuenta(5, 4101, NaturalezaCuenta.Acreedora, true, true);
     private final Cuenta ivaDebito = Fabrica.cuenta(6, 2102, NaturalezaCuenta.Acreedora, true, true);
     private final Cuenta costoVentas = Fabrica.cuenta(7, 5101);
@@ -23,6 +24,18 @@ class AsientosTest {
 
     private static BigDecimal bd(String v) {
         return new BigDecimal(v);
+    }
+
+    private static PagoDocumento pago(TotalesDocumento t, String porcentajeContado) {
+        return PagoDocumento.dividir(t.total(), bd(porcentajeContado));
+    }
+
+    private static BigDecimal sumaCargos(List<LineaAsiento> lineas) {
+        return lineas.stream().map(LineaAsiento::cargo).reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private static BigDecimal sumaAbonos(List<LineaAsiento> lineas) {
+        return lineas.stream().map(LineaAsiento::abono).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private static BigDecimal cargoDe(List<LineaAsiento> lineas, Cuenta c) {
@@ -68,7 +81,7 @@ class AsientosTest {
     void compraDebitaInventarioEIvaYAcreditaProveedores() {
         TotalesDocumento t = TotalesDocumento.calcular(bd("152"), bd("0.13"));
 
-        List<LineaAsiento> lineas = Asientos.compra(inventario, ivaCredito, proveedores, t);
+        List<LineaAsiento> lineas = Asientos.compra(inventario, ivaCredito, caja, proveedores, t, pago(t, "0"));
 
         assertEquals(3, lineas.size());
         assertEquals(bd("152.00"), cargoDe(lineas, inventario));
@@ -79,8 +92,8 @@ class AsientosTest {
 
     @Test
     void compraSinIvaOmiteLaLineaDeIva() {
-        List<LineaAsiento> lineas = Asientos.compra(inventario, ivaCredito, proveedores,
-                TotalesDocumento.calcular(bd("100"), BigDecimal.ZERO));
+        TotalesDocumento t = TotalesDocumento.calcular(bd("100"), BigDecimal.ZERO);
+        List<LineaAsiento> lineas = Asientos.compra(inventario, ivaCredito, caja, proveedores, t, pago(t, "0"));
 
         assertEquals(2, lineas.size());
         assertTrue(lineas.stream().noneMatch(l -> l.cuenta() == ivaCredito));
@@ -88,8 +101,47 @@ class AsientosTest {
 
     @Test
     void compraDeImporteCeroNoGeneraAsiento() {
-        assertTrue(Asientos.compra(inventario, ivaCredito, proveedores,
-                TotalesDocumento.calcular(BigDecimal.ZERO, bd("0.13"))).isEmpty());
+        TotalesDocumento t = TotalesDocumento.calcular(BigDecimal.ZERO, bd("0.13"));
+
+        assertTrue(Asientos.compra(inventario, ivaCredito, caja, proveedores, t, pago(t, "40")).isEmpty());
+    }
+
+    @Test
+    void compraAlContadoAcreditaCajaYNoGeneraLineaDeProveedores() {
+        TotalesDocumento t = TotalesDocumento.calcular(bd("152"), bd("0.13"));
+
+        // la cuenta de proveedores no se necesita: puede ser nula
+        List<LineaAsiento> lineas = Asientos.compra(inventario, ivaCredito, caja, null, t, pago(t, "100"));
+
+        assertEquals(3, lineas.size());
+        assertEquals(bd("171.76"), abonoDe(lineas, caja));
+        assertTrue(lineas.stream().allMatch(l -> l.cargo().signum() > 0 || l.abono().signum() > 0));
+        ReglasPartida.validar(lineas);
+    }
+
+    @Test
+    void compraMixta40_60RepartePagoEntreCajaYProveedores() {
+        TotalesDocumento t = TotalesDocumento.calcular(bd("152"), bd("0.13")); // total 171.76
+
+        List<LineaAsiento> lineas = Asientos.compra(inventario, ivaCredito, caja, proveedores, t, pago(t, "40"));
+
+        assertEquals(4, lineas.size());
+        assertEquals(bd("68.70"), abonoDe(lineas, caja));
+        assertEquals(bd("103.06"), abonoDe(lineas, proveedores));
+        ReglasPartida.validar(lineas);
+    }
+
+    @Test
+    void compraConPorcentajeQueNoDivideExactoCuadraAlCentavo() {
+        TotalesDocumento t = TotalesDocumento.calcular(bd("152"), bd("0.13")); // total 171.76
+
+        List<LineaAsiento> lineas = Asientos.compra(inventario, ivaCredito, caja, proveedores, t, pago(t, "33.33"));
+
+        // contado = 171.76 x 0.3333 = 57.2476 -> 57.25 ; credito = 114.51
+        assertEquals(bd("57.25"), abonoDe(lineas, caja));
+        assertEquals(bd("114.51"), abonoDe(lineas, proveedores));
+        assertEquals(0, sumaCargos(lineas).compareTo(sumaAbonos(lineas)));
+        ReglasPartida.validar(lineas);
     }
 
     // ----------------------------------------------------------------------------------------- venta
@@ -98,10 +150,12 @@ class AsientosTest {
     void ventaRegistraIngresoConIvaYCostoDeVentas() {
         TotalesDocumento t = TotalesDocumento.calcular(bd("100"), bd("0.13"));
 
-        List<LineaAsiento> lineas = Asientos.venta(caja, ventas, ivaDebito, costoVentas, inventario, t, bd("60.00"));
+        List<LineaAsiento> lineas = Asientos.venta(caja, clientes, ventas, ivaDebito, costoVentas, inventario, t,
+                pago(t, "100"), bd("60.00"));
 
         assertEquals(5, lineas.size());
         assertEquals(bd("113.00"), cargoDe(lineas, caja));
+        assertTrue(lineas.stream().noneMatch(l -> l.cuenta() == clientes));
         assertEquals(bd("100.00"), abonoDe(lineas, ventas));
         assertEquals(bd("13.00"), abonoDe(lineas, ivaDebito));
         assertEquals(bd("60.00"), cargoDe(lineas, costoVentas));
@@ -111,8 +165,9 @@ class AsientosTest {
 
     @Test
     void ventaConCostoCeroOmiteLasLineasDeCosto() {
-        List<LineaAsiento> lineas = Asientos.venta(caja, ventas, ivaDebito, costoVentas, inventario,
-                TotalesDocumento.calcular(bd("100"), bd("0.13")), BigDecimal.ZERO);
+        TotalesDocumento t = TotalesDocumento.calcular(bd("100"), bd("0.13"));
+        List<LineaAsiento> lineas = Asientos.venta(caja, clientes, ventas, ivaDebito, costoVentas, inventario, t,
+                pago(t, "100"), BigDecimal.ZERO);
 
         assertEquals(3, lineas.size());
         ReglasPartida.validar(lineas);
@@ -120,8 +175,9 @@ class AsientosTest {
 
     @Test
     void ventaGratisConCostoSoloRegistraElCosto() {
-        List<LineaAsiento> lineas = Asientos.venta(caja, ventas, ivaDebito, costoVentas, inventario,
-                TotalesDocumento.calcular(BigDecimal.ZERO, bd("0.13")), bd("5"));
+        TotalesDocumento t = TotalesDocumento.calcular(BigDecimal.ZERO, bd("0.13"));
+        List<LineaAsiento> lineas = Asientos.venta(caja, clientes, ventas, ivaDebito, costoVentas, inventario, t,
+                pago(t, "100"), bd("5"));
 
         assertEquals(2, lineas.size());
         assertEquals(bd("5.00"), cargoDe(lineas, costoVentas));
@@ -130,8 +186,53 @@ class AsientosTest {
 
     @Test
     void ventaSinImporteNiCostoNoGeneraAsiento() {
-        assertTrue(Asientos.venta(caja, ventas, ivaDebito, costoVentas, inventario,
-                TotalesDocumento.calcular(BigDecimal.ZERO, bd("0.13")), BigDecimal.ZERO).isEmpty());
+        TotalesDocumento t = TotalesDocumento.calcular(BigDecimal.ZERO, bd("0.13"));
+
+        assertTrue(Asientos.venta(caja, clientes, ventas, ivaDebito, costoVentas, inventario, t, pago(t, "0"),
+                BigDecimal.ZERO).isEmpty());
+    }
+
+    @Test
+    void ventaALaCreditoDebitaClientesYNoGeneraLineaDeCaja() {
+        TotalesDocumento t = TotalesDocumento.calcular(bd("100"), bd("0.13"));
+
+        // la cuenta de caja no se necesita: puede ser nula
+        List<LineaAsiento> lineas = Asientos.venta(null, clientes, ventas, ivaDebito, costoVentas, inventario, t,
+                pago(t, "0"), bd("60.00"));
+
+        assertEquals(5, lineas.size());
+        assertEquals(bd("113.00"), cargoDe(lineas, clientes));
+        ReglasPartida.validar(lineas);
+    }
+
+    @Test
+    void ventaMixta40_60DebitaCajaYClientes() {
+        TotalesDocumento t = TotalesDocumento.calcular(bd("110"), bd("0.13")); // total 124.30
+
+        List<LineaAsiento> lineas = Asientos.venta(caja, clientes, ventas, ivaDebito, costoVentas, inventario, t,
+                pago(t, "40"), bd("52.00"));
+
+        assertEquals(6, lineas.size());
+        assertEquals(bd("49.72"), cargoDe(lineas, caja));
+        assertEquals(bd("74.58"), cargoDe(lineas, clientes));
+        assertEquals(bd("110.00"), abonoDe(lineas, ventas));
+        assertEquals(bd("14.30"), abonoDe(lineas, ivaDebito));
+        ReglasPartida.validar(lineas);
+    }
+
+    @Test
+    void ventaConPorcentajeQueNoDivideExactoCuadraAlCentavo() {
+        TotalesDocumento t = TotalesDocumento.calcular(bd("100.05"), bd("0.13")); // IVA 13.01 ; total 113.06
+
+        List<LineaAsiento> lineas = Asientos.venta(caja, clientes, ventas, ivaDebito, costoVentas, inventario, t,
+                pago(t, "33.33"), bd("60.00"));
+
+        // contado = 113.06 x 0.3333 = 37.6829 -> 37.68 ; credito = 75.38
+        assertEquals(bd("37.68"), cargoDe(lineas, caja));
+        assertEquals(bd("75.38"), cargoDe(lineas, clientes));
+        assertEquals(0, sumaCargos(lineas).compareTo(sumaAbonos(lineas)));
+        assertTrue(lineas.stream().allMatch(l -> l.cargo().signum() > 0 || l.abono().signum() > 0));
+        ReglasPartida.validar(lineas);
     }
 
     // ---------------------------------------------------------------------------------------- ajuste

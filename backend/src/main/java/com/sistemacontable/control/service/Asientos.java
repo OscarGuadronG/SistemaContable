@@ -9,30 +9,38 @@ import java.util.List;
  * Asientos automaticos (lineas de partida) de compra, venta y ajuste de inventario. Son funciones puras: reciben las
  * cuentas ya resueltas y los importes, y omiten las lineas de importe cero (una linea debe tener cargo o abono mayor
  * que cero). Si todos los importes son cero devuelven una lista vacia: no hay nada que contabilizar.
+ *
+ * <p>Las cuentas de pago (caja, proveedores, clientes) solo se usan cuando su linea se genera: si el reparto
+ * contado/credito deja una de ellas en cero, esa cuenta puede ser {@code null}.</p>
  */
 public final class Asientos {
 
     private Asientos() {
     }
 
-    /** Compra: Inventario e IVA credito fiscal al debe; Proveedores (total) al haber. */
-    public static List<LineaAsiento> compra(Cuenta inventario, Cuenta ivaCredito, Cuenta proveedores,
-            TotalesDocumento t) {
+    /**
+     * Compra: Inventario e IVA credito fiscal al debe; al haber, Caja por la parte de contado y Proveedores por la
+     * parte a credito (la suma es el total).
+     */
+    public static List<LineaAsiento> compra(Cuenta inventario, Cuenta ivaCredito, Cuenta caja, Cuenta proveedores,
+            TotalesDocumento t, PagoDocumento pago) {
         List<LineaAsiento> lineas = new ArrayList<>();
         cargo(lineas, inventario, t.subtotal());
         cargo(lineas, ivaCredito, t.iva());
-        abono(lineas, proveedores, t.total());
+        abono(lineas, caja, pago.contado());
+        abono(lineas, proveedores, pago.credito());
         return lineas;
     }
 
     /**
-     * Venta: la cuenta de cobro (Caja o Clientes) al debe por el total; Ventas e IVA debito fiscal al haber; y el
-     * costo de ventas al debe contra Inventario al haber por {@code costo}.
+     * Venta: al debe, Caja por la parte de contado y Clientes por la parte a credito (la suma es el total); Ventas e
+     * IVA debito fiscal al haber; y el costo de ventas al debe contra Inventario al haber por {@code costo}.
      */
-    public static List<LineaAsiento> venta(Cuenta cobro, Cuenta ventas, Cuenta ivaDebito, Cuenta costoVentas,
-            Cuenta inventario, TotalesDocumento t, BigDecimal costo) {
+    public static List<LineaAsiento> venta(Cuenta caja, Cuenta clientes, Cuenta ventas, Cuenta ivaDebito,
+            Cuenta costoVentas, Cuenta inventario, TotalesDocumento t, PagoDocumento pago, BigDecimal costo) {
         List<LineaAsiento> lineas = new ArrayList<>();
-        cargo(lineas, cobro, t.total());
+        cargo(lineas, caja, pago.contado());
+        cargo(lineas, clientes, pago.credito());
         abono(lineas, ventas, t.subtotal());
         abono(lineas, ivaDebito, t.iva());
         BigDecimal costoRedondeado = Dinero.redondear(costo);

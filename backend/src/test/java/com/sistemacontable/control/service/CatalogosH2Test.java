@@ -61,7 +61,7 @@ class CatalogosH2Test {
     @Test
     void nadaSeEliminaMientrasTengaReferenciasReales() {
         cableado.obtener(CompraService.class).registrar(new CompraCmd(esc.proveedor.getId(), esc.empleado.getId(), null,
-                null, List.of(new LineaCompraCmd(esc.loteA.getId(), esc.almacenA.getId(), BigDecimal.ONE,
+                null, BigDecimal.ZERO, List.of(new LineaCompraCmd(esc.loteA.getId(), esc.almacenA.getId(), BigDecimal.ONE,
                         BigDecimal.TEN))));
         em.flush();
 

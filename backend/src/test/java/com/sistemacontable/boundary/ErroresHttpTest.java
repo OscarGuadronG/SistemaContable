@@ -110,7 +110,7 @@ class ErroresHttpTest {
     void laRutaDeUnaViolacionConserva_elIndiceDeLaLineaYOmiteMetodoYParametro() {
         Validator validador = Validation.buildDefaultValidatorFactory().getValidator();
         com.sistemacontable.boundary.dto.CompraRequest compra = new com.sistemacontable.boundary.dto.CompraRequest(1L, 2L,
-                null, null, java.util.Arrays.asList(
+                null, null, java.math.BigDecimal.ZERO, java.util.Arrays.asList(
                         new com.sistemacontable.boundary.dto.CompraRequest.Linea(1L, 1L, java.math.BigDecimal.ONE,
                                 java.math.BigDecimal.ONE),
                         new com.sistemacontable.boundary.dto.CompraRequest.Linea(null, 1L, java.math.BigDecimal.ONE,

@@ -40,8 +40,16 @@ import java.util.Map;
  * Despues se escribe: venta, y por cada linea su {@code ventas_detalle}, la resta de existencias y un
  * {@code kardex} {@code Salida} (origen = almacen, id_venta) cuyo {@code kardex_detalle} lleva como
  * {@code precio_costo} el costo promedio ponderado del lote (4 decimales); al final la partida {@code Ingreso}:
- * la cuenta de cobro (Caja si {@code venta.contado}, Clientes si no) al debe por el total; Ventas (subtotal) e IVA
- * debito fiscal al haber; y Costo de ventas al debe contra Inventario al haber.</p>
+ * al debe, Caja ({@code cuenta.caja}) por la parte de contado y Clientes ({@code cuenta.clientes}) por la parte a
+ * credito; Ventas (subtotal) e IVA debito fiscal al haber; y Costo de ventas al debe contra Inventario al haber.</p>
+ *
+ * <p><b>Forma de cobro:</b> no se guarda en la base de datos; viaja en la orden como {@code porcentajeContado}
+ * (obligatorio, 0 a 100 inclusive; si es nulo o esta fuera de rango se rechaza con {@code ReglaNegocioException}
+ * antes de consultar o escribir nada). Primero se calcula el total con IVA y luego
+ * {@code contado = round(total x porcentaje / 100)} (HALF_UP, 2 decimales, solo via {@link Dinero}) y
+ * {@code credito = total - contado}, de modo que la partida cuadra al centavo. Nunca se genera una linea de importe
+ * cero, y una cuenta de cobro solo se exige cuando su linea se genera: con 100 % de contado no hace falta
+ * {@code cuenta.clientes}, con 0 % no hace falta {@code cuenta.caja}.</p>
  *
  * <p>Decisiones conservadoras: un lote sin compras registradas no tiene costo conocido y la venta se rechaza (en vez
  * de contabilizar costo cero); el almacen de la linea debe estar habilitado. El precio de la linea no incluye IVA.
@@ -96,6 +104,7 @@ public class VentaService {
         if (cmd == null) {
             throw new ReglaNegocioException("La venta es obligatoria");
         }
+        PagoDocumento.validarPorcentaje(cmd.porcentajeContado());
         if (cmd.clienteId() == null) {
             throw new ReglaNegocioException("El cliente de la venta es obligatorio");
         }
@@ -144,14 +153,16 @@ public class VentaService {
 
         TotalesDocumento totales = TotalesDocumento.calcular(subtotalSinRedondear,
                 config.getBigDecimal(ConfigContable.IVA_TASA));
-        Cuenta cobro = partidaService.cuentaConfigurada(config.getBoolean(ConfigContable.VENTA_CONTADO)
-                ? ConfigContable.CUENTA_CAJA : ConfigContable.CUENTA_CLIENTES);
+        PagoDocumento pago = PagoDocumento.dividir(totales.total(), cmd.porcentajeContado());
+        Cuenta caja = pago.contado().signum() > 0 ? partidaService.cuentaConfigurada(ConfigContable.CUENTA_CAJA) : null;
+        Cuenta clientes = pago.credito().signum() > 0
+                ? partidaService.cuentaConfigurada(ConfigContable.CUENTA_CLIENTES) : null;
         Cuenta ventas = partidaService.cuentaConfigurada(ConfigContable.CUENTA_VENTAS);
         Cuenta ivaDebito = partidaService.cuentaConfigurada(ConfigContable.CUENTA_IVA_DEBITO);
         Cuenta costoVentasCuenta = partidaService.cuentaConfigurada(ConfigContable.CUENTA_COSTO_VENTAS);
         Cuenta inventario = partidaService.cuentaConfigurada(ConfigContable.CUENTA_INVENTARIO);
-        List<LineaAsiento> asiento = Asientos.venta(cobro, ventas, ivaDebito, costoVentasCuenta, inventario, totales,
-                costoVentas);
+        List<LineaAsiento> asiento = Asientos.venta(caja, clientes, ventas, ivaDebito, costoVentasCuenta, inventario,
+                totales, pago, costoVentas);
         if (!asiento.isEmpty()) {
             ReglasPartida.validar(asiento);
         }

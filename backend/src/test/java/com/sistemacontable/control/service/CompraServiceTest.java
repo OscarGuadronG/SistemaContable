@@ -91,6 +91,7 @@ class CompraServiceTest {
     private final Cuenta inventario = Fabrica.cuenta(1, 1104);
     private final Cuenta ivaCredito = Fabrica.cuenta(2, 1105);
     private final Cuenta proveedores = Fabrica.cuenta(3, 2101, NaturalezaCuenta.Acreedora, true, true);
+    private final Cuenta caja = Fabrica.cuenta(4, 1101);
     private final LocalDate fecha = LocalDate.of(2026, 5, 4);
 
     private static Proveedor proveedor() {
@@ -121,6 +122,7 @@ class CompraServiceTest {
         when(partidaService.cuentaConfigurada(ConfigContable.CUENTA_INVENTARIO)).thenReturn(inventario);
         when(partidaService.cuentaConfigurada(ConfigContable.CUENTA_IVA_CREDITO)).thenReturn(ivaCredito);
         when(partidaService.cuentaConfigurada(ConfigContable.CUENTA_PROVEEDORES)).thenReturn(proveedores);
+        when(partidaService.cuentaConfigurada(ConfigContable.CUENTA_CAJA)).thenReturn(caja);
         when(compraDAO.crear(any())).thenAnswer(inv -> {
             Compra c = inv.getArgument(0);
             c.setId(5L);
@@ -136,9 +138,24 @@ class CompraServiceTest {
     }
 
     private CompraCmd cmdValido() {
-        return new CompraCmd(1L, 2L, fecha, "Reposicion", List.of(
+        return cmdConPorcentaje(bd("0"));
+    }
+
+    /** 10 x 5.00 + 4 x 25.50 = 152.00 ; IVA 13 % = 19.76 ; total 171.76. */
+    private CompraCmd cmdConPorcentaje(BigDecimal porcentajeContado) {
+        return new CompraCmd(1L, 2L, fecha, "Reposicion", porcentajeContado, List.of(
                 new LineaCompraCmd(10L, 20L, bd("10"), bd("5.00")),
                 new LineaCompraCmd(11L, 20L, bd("4"), bd("25.50"))));
+    }
+
+    private List<LineaAsiento> partidaGenerada() {
+        ArgumentCaptor<List<LineaAsiento>> lineas = lineasCaptor();
+        verify(partidaService).registrar(any(), any(), any(), any(), any(), any(), lineas.capture());
+        return lineas.getValue();
+    }
+
+    private static void assertSinLineasEnCero(List<LineaAsiento> lineas) {
+        assertTrue(lineas.stream().allMatch(l -> l.cargo().signum() > 0 || l.abono().signum() > 0));
     }
 
     private void noSeEscribioNada() {
@@ -209,6 +226,104 @@ class CompraServiceTest {
     }
 
     @Test
+    void conCeroPorCientoDeContadoTodoVaAProveedoresYNoSeExigeLaCuentaDeCaja() {
+        when(partidaService.cuentaConfigurada(ConfigContable.CUENTA_CAJA))
+                .thenThrow(new ReglaNegocioException("La cuenta configurada en 'cuenta.caja' no existe"));
+
+        servicio.registrar(cmdConPorcentaje(bd("0")));
+
+        List<LineaAsiento> lineas = partidaGenerada();
+        verify(partidaService, never()).cuentaConfigurada(ConfigContable.CUENTA_CAJA);
+        assertEquals(LineaAsiento.abono(proveedores, bd("171.76")), lineas.get(2));
+        assertTrue(lineas.stream().noneMatch(l -> l.cuenta() == caja));
+        assertSinLineasEnCero(lineas);
+    }
+
+    @Test
+    void conCienPorCientoDeContadoTodoSalePorCajaYNoSeExigeLaCuentaDeProveedores() {
+        when(partidaService.cuentaConfigurada(ConfigContable.CUENTA_PROVEEDORES))
+                .thenThrow(new ReglaNegocioException("La cuenta configurada en 'cuenta.proveedores' no existe"));
+
+        servicio.registrar(cmdConPorcentaje(bd("100")));
+
+        List<LineaAsiento> lineas = partidaGenerada();
+        verify(partidaService, never()).cuentaConfigurada(ConfigContable.CUENTA_PROVEEDORES);
+        assertEquals(List.of(
+                LineaAsiento.cargo(inventario, bd("152.00")),
+                LineaAsiento.cargo(ivaCredito, bd("19.76")),
+                LineaAsiento.abono(caja, bd("171.76"))), lineas);
+        assertSinLineasEnCero(lineas);
+    }
+
+    @Test
+    void conCuarentaPorCientoDeContadoElPagoSeReparteEntreCajaYProveedores() {
+        ResultadoCompra r = servicio.registrar(cmdConPorcentaje(bd("40")));
+
+        // total 171.76 -> contado 68.70 ; credito 103.06
+        assertEquals(List.of(
+                LineaAsiento.cargo(inventario, bd("152.00")),
+                LineaAsiento.cargo(ivaCredito, bd("19.76")),
+                LineaAsiento.abono(caja, bd("68.70")),
+                LineaAsiento.abono(proveedores, bd("103.06"))), partidaGenerada());
+        assertEquals(bd("171.76"), r.total());
+    }
+
+    @Test
+    void unPorcentajeQueNoDivideExactoElTotalCuadraAlCentavo() {
+        servicio.registrar(cmdConPorcentaje(bd("33.33")));
+
+        List<LineaAsiento> lineas = partidaGenerada();
+        // 171.76 x 0.3333 = 57.2476 -> 57.25 ; credito = 171.76 - 57.25 = 114.51
+        assertEquals(LineaAsiento.abono(caja, bd("57.25")), lineas.get(2));
+        assertEquals(LineaAsiento.abono(proveedores, bd("114.51")), lineas.get(3));
+        BigDecimal cargos = lineas.stream().map(LineaAsiento::cargo).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal abonos = lineas.stream().map(LineaAsiento::abono).reduce(BigDecimal.ZERO, BigDecimal::add);
+        assertEquals(0, cargos.compareTo(abonos));
+        assertSinLineasEnCero(lineas);
+    }
+
+    @Test
+    void unPorcentajeNuloOFueraDeRangoSeRechazaAntesDeEscribirNada() {
+        for (BigDecimal malo : new BigDecimal[] {null, bd("-1"), bd("-0.01"), bd("100.01"), bd("150")}) {
+            ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
+                    () -> servicio.registrar(cmdConPorcentaje(malo)));
+            assertTrue(ex.getMessage().contains("porcentaje de contado"), ex.getMessage());
+            noSeEscribioNada();
+        }
+    }
+
+    @Test
+    void laValidacionDelPorcentajeOcurreAntesDeBuscarCualquierEntidad() {
+        assertThrows(ReglaNegocioException.class, () -> servicio.registrar(cmdConPorcentaje(bd("-1"))));
+
+        verifyNoInteractions(proveedorDAO, empleadoDAO, loteDAO, almacenDAO);
+    }
+
+    @Test
+    void losExtremosDelRangoSeAceptan() {
+        servicio.registrar(cmdConPorcentaje(bd("0")));
+        servicio.registrar(cmdConPorcentaje(bd("0.00")));
+        servicio.registrar(cmdConPorcentaje(bd("100")));
+        servicio.registrar(cmdConPorcentaje(bd("100.00")));
+
+        verify(compraDAO, times(4)).crear(any());
+    }
+
+    @Test
+    void unaCompraGratisNoExigeNingunaCuentaDePago() {
+        when(partidaService.cuentaConfigurada(ConfigContable.CUENTA_CAJA))
+                .thenThrow(new ReglaNegocioException("sin caja"));
+        when(partidaService.cuentaConfigurada(ConfigContable.CUENTA_PROVEEDORES))
+                .thenThrow(new ReglaNegocioException("sin proveedores"));
+        CompraCmd cmd = new CompraCmd(1L, 2L, fecha, "Donacion", bd("40"), List.of(
+                new LineaCompraCmd(10L, 20L, bd("3"), BigDecimal.ZERO)));
+
+        ResultadoCompra r = servicio.registrar(cmd);
+
+        assertNull(r.partida());
+    }
+
+    @Test
     void elOrdenDeEscrituraEsCompraStockKardexYPartida() {
         servicio.registrar(cmdValido());
 
@@ -222,7 +337,7 @@ class CompraServiceTest {
 
     @Test
     void sinFechaUsaLaFechaDeHoy() {
-        CompraCmd cmd = new CompraCmd(1L, 2L, null, null, cmdValido().lineas());
+        CompraCmd cmd = new CompraCmd(1L, 2L, null, null, bd("0"), cmdValido().lineas());
 
         ResultadoCompra r = servicio.registrar(cmd);
 
@@ -231,7 +346,7 @@ class CompraServiceTest {
 
     @Test
     void unaCompraDeImporteCeroActualizaStockYKardexPeroNoGeneraPartida() {
-        CompraCmd cmd = new CompraCmd(1L, 2L, fecha, "Donacion", List.of(
+        CompraCmd cmd = new CompraCmd(1L, 2L, fecha, "Donacion", bd("0"), List.of(
                 new LineaCompraCmd(10L, 20L, bd("3"), BigDecimal.ZERO)));
 
         ResultadoCompra r = servicio.registrar(cmd);
@@ -249,17 +364,17 @@ class CompraServiceTest {
         when(proveedorDAO.buscarPorId(99L)).thenReturn(Optional.empty());
         when(empleadoDAO.buscarPorId(98L)).thenReturn(Optional.empty());
 
-        rechaza(new CompraCmd(99L, 2L, fecha, null, cmdValido().lineas()), NoEncontradoException.class);
-        rechaza(new CompraCmd(1L, 98L, fecha, null, cmdValido().lineas()), NoEncontradoException.class);
+        rechaza(new CompraCmd(99L, 2L, fecha, null, bd("0"), cmdValido().lineas()), NoEncontradoException.class);
+        rechaza(new CompraCmd(1L, 98L, fecha, null, bd("0"), cmdValido().lineas()), NoEncontradoException.class);
     }
 
     @Test
     void datosObligatoriosAusentesNoEscribenNada() {
         rechaza(null, ReglaNegocioException.class);
-        rechaza(new CompraCmd(null, 2L, fecha, null, cmdValido().lineas()), ReglaNegocioException.class);
-        rechaza(new CompraCmd(1L, null, fecha, null, cmdValido().lineas()), ReglaNegocioException.class);
-        rechaza(new CompraCmd(1L, 2L, fecha, null, List.of()), ReglaNegocioException.class);
-        rechaza(new CompraCmd(1L, 2L, fecha, null, null), ReglaNegocioException.class);
+        rechaza(new CompraCmd(null, 2L, fecha, null, bd("0"), cmdValido().lineas()), ReglaNegocioException.class);
+        rechaza(new CompraCmd(1L, null, fecha, null, bd("0"), cmdValido().lineas()), ReglaNegocioException.class);
+        rechaza(new CompraCmd(1L, 2L, fecha, null, bd("0"), List.of()), ReglaNegocioException.class);
+        rechaza(new CompraCmd(1L, 2L, fecha, null, bd("0"), null), ReglaNegocioException.class);
     }
 
     @Test
@@ -273,6 +388,7 @@ class CompraServiceTest {
                 new LineaCompraCmd(null, 20L, bd("1"), bd("1")),
                 new LineaCompraCmd(11L, null, bd("1"), bd("1")))) {
             CompraCmd cmd = new CompraCmd(1L, 2L, fecha, null,
+                    bd("0"),
                     List.of(new LineaCompraCmd(10L, 20L, bd("1"), bd("1")), mala));
             rechaza(cmd, ReglaNegocioException.class);
         }
@@ -283,16 +399,16 @@ class CompraServiceTest {
         when(loteDAO.buscarPorId(99L)).thenReturn(Optional.empty());
         when(almacenDAO.buscarPorId(98L)).thenReturn(Optional.empty());
 
-        rechaza(new CompraCmd(1L, 2L, fecha, null, List.of(new LineaCompraCmd(99L, 20L, bd("1"), bd("1")))),
+        rechaza(new CompraCmd(1L, 2L, fecha, null, bd("0"), List.of(new LineaCompraCmd(99L, 20L, bd("1"), bd("1")))),
                 NoEncontradoException.class);
-        rechaza(new CompraCmd(1L, 2L, fecha, null, List.of(new LineaCompraCmd(10L, 98L, bd("1"), bd("1")))),
+        rechaza(new CompraCmd(1L, 2L, fecha, null, bd("0"), List.of(new LineaCompraCmd(10L, 98L, bd("1"), bd("1")))),
                 NoEncontradoException.class);
     }
 
     @Test
     void unAlmacenDeshabilitadoSeRechazaSinEscribir() {
         ReglaNegocioException ex = assertThrows(ReglaNegocioException.class, () -> servicio.registrar(
-                new CompraCmd(1L, 2L, fecha, null, List.of(new LineaCompraCmd(10L, 21L, bd("1"), bd("1"))))));
+                new CompraCmd(1L, 2L, fecha, null, bd("0"), List.of(new LineaCompraCmd(10L, 21L, bd("1"), bd("1"))))));
 
         assertTrue(ex.getMessage().contains("deshabilitado"), ex.getMessage());
         noSeEscribioNada();

@@ -3,16 +3,22 @@ package com.sistemacontable.boundary.dto;
 import com.sistemacontable.control.service.cmd.LineaVentaCmd;
 import com.sistemacontable.control.service.cmd.VentaCmd;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Orden de registrar una venta (todo por ids). {@code fecha} nula equivale a hoy; el precio no incluye IVA. */
+/**
+ * Orden de registrar una venta (todo por ids). {@code fecha} nula equivale a hoy; el precio no incluye IVA.
+ * {@code porcentajeContado} (0 a 100, obligatorio) es la parte cobrada al contado; el resto queda a credito.
+ */
 public record VentaRequest(@NotNull Long clienteId,
         @NotNull Long empleadoId,
         LocalDate fecha,
         String descripcion,
+        @NotNull @DecimalMin("0") @DecimalMax("100") BigDecimal porcentajeContado,
         @Valid List<@NotNull Linea> lineas) {
 
     /** Linea del documento. */
@@ -24,7 +30,7 @@ public record VentaRequest(@NotNull Long clienteId,
     }
 
     public VentaCmd aCmd() {
-        return new VentaCmd(clienteId, empleadoId, fecha, descripcion,
+        return new VentaCmd(clienteId, empleadoId, fecha, descripcion, porcentajeContado,
                 lineas == null ? null : lineas.stream().map(Linea::aCmd).toList());
     }
 }
