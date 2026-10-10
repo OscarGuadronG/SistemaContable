@@ -1,0 +1,48 @@
+<server description="Sistema Contable">
+
+    <featureManager>
+        <feature>webProfile-10.0</feature>
+    </featureManager>
+
+    <httpEndpoint id="defaultHttpEndpoint"
+                  host="*"
+                  httpPort="9080"
+                  httpsPort="9443"/>
+
+    <applicationManager autoExpand="true"/>
+
+    <!-- ===================== VARIABLES DE CONEXION =====================
+         Orden de precedencia de Liberty (de menor a mayor): defaultValue de server.xml, variables de
+         entorno, bootstrap.properties y propiedades de sistema Java (-D).
+         Una variable de entorno se resuelve por su nombre exacto o, si no existe, en MAYUSCULAS con los
+         puntos cambiados por guion bajo (db.host -> DB_HOST). Tambien se pueden declarar en
+         src/main/liberty/config/server.env (ignorado por git).
+         Aqui solo van valores por defecto no secretos; la clave NO tiene valor por defecto. -->
+    <variable name="db.host" defaultValue="localhost"/>
+    <variable name="db.port" defaultValue="5432"/>
+    <variable name="db.name" defaultValue="postgres"/>
+    <variable name="db.user" defaultValue="postgres"/>
+    <variable name="db.password" defaultValue=""/>
+    <variable name="db.sslmode" defaultValue="prefer"/>
+
+    <!-- ===================== BASE DE DATOS ===================== -->
+    <!-- El jar del driver lo copia liberty-maven-plugin (copyDependencies en pom.xml). -->
+    <library id="postgresql-library">
+        <fileset dir="${shared.resource.dir}" includes="postgresql-*.jar"/>
+    </library>
+
+    <dataSource id="ContableDS" jndiName="jdbc/ContableDS">
+        <jdbcDriver libraryRef="postgresql-library"/>
+        <!-- stringType=unspecified: pgjdbc envia los String sin tipo y Postgres los convierte al
+             enum que corresponda (estado_empleado, tipo_partida, ...). Sin esto, los INSERT con
+             @Enumerated(STRING) fallan con "column is of type ... but expression is of type varchar". -->
+        <properties.postgresql serverName="${db.host}"
+                               portNumber="${db.port}"
+                               databaseName="${db.name}"
+                               user="${db.user}"
+                               password="${db.password}"
+                               stringType="unspecified"
+                               sslMode="${db.sslmode}"/>
+    </dataSource>
+
+</server>

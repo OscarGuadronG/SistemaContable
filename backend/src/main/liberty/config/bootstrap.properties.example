@@ -1,0 +1,10 @@
+# Plantilla de bootstrap.properties de Liberty. Copiar como "bootstrap.properties" (ignorado por git)
+# y completar. Este archivo tiene PRECEDENCIA sobre las variables de entorno DB_HOST, DB_PORT, ...
+# (si lo usas, no definas tambien las variables de entorno).
+# Los nombres coinciden con las <variable> de server.xml.
+db.host=localhost
+db.port=5432
+db.name=postgres
+db.user=postgres
+db.password=CAMBIAR
+db.sslmode=prefer
