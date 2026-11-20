@@ -1,0 +1,55 @@
+# Blueprint de Render: frontend estatico (Quasar) + backend Docker (Open Liberty).
+# Los secretos (DB_PASSWORD, SUPABASE_SERVICE_ROLE_KEY) se escriben en el panel de Render: sync: false.
+services:
+  - type: web
+    runtime: docker
+    name: sistema-contable-api
+    plan: free
+    region: oregon
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/hello
+    envVars:
+      - key: DB_HOST
+        value: aws-0-us-west-2.pooler.supabase.com
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        value: postgres
+      - key: DB_USER
+        value: postgres.xyukidsdmihmsmlpddqz
+      - key: DB_SSLMODE
+        value: require
+      - key: DB_PASSWORD
+        sync: false
+      - key: SUPABASE_URL
+        value: https://xyukidsdmihmsmlpddqz.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://sistema-contable-web.onrender.com,http://localhost:9000
+
+  - type: web
+    runtime: static
+    name: sistema-contable-web
+    rootDir: frontend
+    buildCommand: npm ci && npx quasar build
+    staticPublishPath: dist/spa
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: API_URL
+        value: https://sistema-contable-api.onrender.com/api
+      - key: SUPABASE_URL
+        value: https://xyukidsdmihmsmlpddqz.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_sReom9tHSFYaC22i9kURHw_pi-I_JM6
