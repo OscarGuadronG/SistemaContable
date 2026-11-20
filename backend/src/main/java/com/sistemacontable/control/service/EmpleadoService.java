@@ -98,7 +98,11 @@ public class EmpleadoService {
         }
         String nombre = Validaciones.texto(cmd.nombre(), "nombre");
         String apellido = Validaciones.texto(cmd.apellido(), "apellido");
-        String dui = Validaciones.texto(cmd.dui(), "DUI");
+        // La columna es varchar(9): el DUI se guarda sin guion (00000000-0 -> 000000000).
+        String dui = Validaciones.texto(cmd.dui(), "DUI").replaceAll("\\D", "");
+        if (!dui.matches("\\d{9}")) {
+            throw new ReglaNegocioException("El DUI debe tener 9 digitos (formato 00000000-0)");
+        }
         String isss = Validaciones.texto(cmd.numeroIsss(), "numero de ISSS");
         Long departamentoId = Validaciones.requerir(cmd.departamentoId(), "departamento");
         Departamento departamento = departamentoDAO.buscarPorId(departamentoId)

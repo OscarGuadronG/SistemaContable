@@ -202,7 +202,10 @@
           <div><strong>Nacimiento:</strong> {{ fecha(ficha.fechNac) }}</div>
           <div><strong>Salario:</strong> {{ moneda(ficha.salario) }}</div>
           <div><strong>ISSS:</strong> {{ ficha.numeroIsss }}</div>
-          <div><strong>DUI:</strong> {{ ficha.dui }}</div>
+          <div>
+            <strong>DUI:</strong>
+            {{ String(ficha.dui || '').replace(/^(\d{8})(\d)$/, '$1-$2') }}
+          </div>
           <div><strong>Estado:</strong> {{ ficha.estado }}</div>
         </q-card-section>
         <q-card-actions align="right"
@@ -305,7 +308,7 @@ async function guardar() {
     departamentoId: form.departamentoId,
     salario: redondear(form.salario),
     numeroIsss: form.numeroIsss.trim(),
-    dui: form.dui
+    dui: form.dui.replace(/\D/g, '')
   }
   try {
     if (editando.value) await api.put(`/empleados/${editando.value.id}`, cuerpo)

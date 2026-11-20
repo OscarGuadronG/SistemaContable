@@ -109,7 +109,7 @@ final class EscenarioContable {
         departamento.setNombre("Ventas");
         em.persist(departamento);
 
-        empleado = nuevoEmpleado("Ana", "Lopez", "00000001-1", "ISSS-1", new BigDecimal("1000.00"));
+        empleado = nuevoEmpleado("Ana", "Lopez", "000000011", "ISSS-1", new BigDecimal("1000.00"));
 
         proveedor = new Proveedor();
         proveedor.setNombre("Proveedor SA");

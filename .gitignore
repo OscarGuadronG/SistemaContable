@@ -7,3 +7,4 @@ target/
 **/bootstrap.properties
 .~lock.*#
 frontend/.env
+.usuarios-prueba.env

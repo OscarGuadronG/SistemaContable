@@ -56,7 +56,7 @@ class EmpleadoDepartamentoServiceTest {
     EmpleadoService empleados;
 
     private final Departamento ventas = departamento(1L);
-    private final Empleado ana = empleado(10L, "00000001-1", "ISSS-1");
+    private final Empleado ana = empleado(10L, "000000011", "ISSS-1");
 
     private static Departamento departamento(long id) {
         Departamento d = new Departamento();
@@ -85,7 +85,7 @@ class EmpleadoDepartamentoServiceTest {
     void preparar() {
         when(departamentoDAO.buscarPorId(1L)).thenReturn(Optional.of(ventas));
         when(empleadoDAO.buscarPorId(10L)).thenReturn(Optional.of(ana));
-        when(empleadoDAO.findByDui("00000001-1")).thenReturn(Optional.of(ana));
+        when(empleadoDAO.findByDui("000000011")).thenReturn(Optional.of(ana));
         when(empleadoDAO.findByNumeroIsss("ISSS-1")).thenReturn(Optional.of(ana));
     }
 
@@ -155,7 +155,7 @@ class EmpleadoDepartamentoServiceTest {
             verify(empleadoDAO).crear(e);
             assertEquals("Luis", e.getNombre());
             assertEquals("ISSS-2", e.getNumeroIsss());
-            assertEquals("00000002-2", e.getDui());
+            assertEquals("000000022", e.getDui());
             assertEquals(EstadoEmpleado.Activo, e.getEstado());
             assertSame(ventas, e.getDepartamento());
             assertEquals(bd("800.00"), e.getSalario());
@@ -164,7 +164,7 @@ class EmpleadoDepartamentoServiceTest {
         @Test
         void aceptaSalarioCeroYEstadoExplicito() {
             Empleado e = empleados.crear(new EmpleadoCmd("Luis", "Perez", null, 1L, BigDecimal.ZERO,
-                    EstadoEmpleado.Suspendido, "ISSS-2", "00000002-2"));
+                    EstadoEmpleado.Suspendido, "ISSS-2", "000000022"));
 
             assertEquals(EstadoEmpleado.Suspendido, e.getEstado());
         }
@@ -172,12 +172,12 @@ class EmpleadoDepartamentoServiceTest {
         @Test
         void rechazaSalarioNegativoONuloYCamposVacios() {
             for (EmpleadoCmd cmd : List.of(
-                    new EmpleadoCmd("Luis", "Perez", null, 1L, bd("-1"), null, "ISSS-2", "00000002-2"),
-                    new EmpleadoCmd("Luis", "Perez", null, 1L, null, null, "ISSS-2", "00000002-2"),
-                    new EmpleadoCmd(" ", "Perez", null, 1L, bd("1"), null, "ISSS-2", "00000002-2"),
-                    new EmpleadoCmd("Luis", null, null, 1L, bd("1"), null, "ISSS-2", "00000002-2"),
-                    new EmpleadoCmd("Luis", "Perez", null, null, bd("1"), null, "ISSS-2", "00000002-2"),
-                    new EmpleadoCmd("Luis", "Perez", null, 1L, bd("1"), null, " ", "00000002-2"),
+                    new EmpleadoCmd("Luis", "Perez", null, 1L, bd("-1"), null, "ISSS-2", "000000022"),
+                    new EmpleadoCmd("Luis", "Perez", null, 1L, null, null, "ISSS-2", "000000022"),
+                    new EmpleadoCmd(" ", "Perez", null, 1L, bd("1"), null, "ISSS-2", "000000022"),
+                    new EmpleadoCmd("Luis", null, null, 1L, bd("1"), null, "ISSS-2", "000000022"),
+                    new EmpleadoCmd("Luis", "Perez", null, null, bd("1"), null, "ISSS-2", "000000022"),
+                    new EmpleadoCmd("Luis", "Perez", null, 1L, bd("1"), null, " ", "000000022"),
                     new EmpleadoCmd("Luis", "Perez", null, 1L, bd("1"), null, "ISSS-2", null))) {
                 assertThrows(ReglaNegocioException.class, () -> empleados.crear(cmd));
             }
@@ -190,17 +190,17 @@ class EmpleadoDepartamentoServiceTest {
             when(departamentoDAO.buscarPorId(99L)).thenReturn(Optional.empty());
 
             assertThrows(NoEncontradoException.class, () -> empleados.crear(
-                    new EmpleadoCmd("Luis", "Perez", null, 99L, bd("1"), null, "ISSS-2", "00000002-2")));
+                    new EmpleadoCmd("Luis", "Perez", null, 99L, bd("1"), null, "ISSS-2", "000000022")));
         }
 
         @Test
         void duiOIsssRepetidosSeRechazanConMensajeClaroAntesDeLaConstraint() {
             ConflictoException dui = assertThrows(ConflictoException.class, () -> empleados.crear(
-                    new EmpleadoCmd("Luis", "Perez", null, 1L, bd("1"), null, "ISSS-2", "00000001-1")));
+                    new EmpleadoCmd("Luis", "Perez", null, 1L, bd("1"), null, "ISSS-2", "000000011")));
             ConflictoException isss = assertThrows(ConflictoException.class, () -> empleados.crear(
-                    new EmpleadoCmd("Luis", "Perez", null, 1L, bd("1"), null, "ISSS-1", "00000002-2")));
+                    new EmpleadoCmd("Luis", "Perez", null, 1L, bd("1"), null, "ISSS-1", "000000022")));
 
-            assertTrue(dui.getMessage().contains("DUI") && dui.getMessage().contains("00000001-1"), dui.getMessage());
+            assertTrue(dui.getMessage().contains("DUI") && dui.getMessage().contains("000000011"), dui.getMessage());
             assertTrue(isss.getMessage().contains("ISSS") && isss.getMessage().contains("ISSS-1"), isss.getMessage());
             verify(empleadoDAO, never()).crear(any());
         }
@@ -212,7 +212,7 @@ class EmpleadoDepartamentoServiceTest {
         @Test
         void modificarPuedeConservarSuPropioDuiEIsss() {
             Empleado e = empleados.modificar(10L, new EmpleadoCmd("Ana Maria", "Lopez", null, 1L, bd("900"), null,
-                    "ISSS-1", "00000001-1"));
+                    "ISSS-1", "000000011"));
 
             assertEquals("Ana Maria", e.getNombre());
             assertEquals(bd("900"), e.getSalario());
@@ -222,11 +222,11 @@ class EmpleadoDepartamentoServiceTest {
 
         @Test
         void modificarConElDuiDeOtroEmpleadoSeRechaza() {
-            Empleado otro = empleado(11L, "00000002-2", "ISSS-2");
-            when(empleadoDAO.findByDui("00000002-2")).thenReturn(Optional.of(otro));
+            Empleado otro = empleado(11L, "000000022", "ISSS-2");
+            when(empleadoDAO.findByDui("000000022")).thenReturn(Optional.of(otro));
 
             assertThrows(ConflictoException.class, () -> empleados.modificar(10L, new EmpleadoCmd("Ana", "Lopez",
-                    null, 1L, bd("1"), null, "ISSS-1", "00000002-2")));
+                    null, 1L, bd("1"), null, "ISSS-1", "000000022")));
             verify(empleadoDAO, never()).modificar(any());
         }
 

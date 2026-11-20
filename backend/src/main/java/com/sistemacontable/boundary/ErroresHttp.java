@@ -157,6 +157,10 @@ public final class ErroresHttp {
                 return Optional.of(new Traduccion(409, ErrorDto.de(CONFLICTO_INTEGRIDAD,
                         mensajeIntegridad(sql))));
             }
+            if (actual instanceof SQLException sql && "22001".equals(sql.getSQLState())) {
+                return Optional.of(new Traduccion(400, ErrorDto.de(SOLICITUD_INVALIDA,
+                        "Un texto excede el largo permitido por la base de datos")));
+            }
             actual = causaDe(actual);
         }
         return Optional.empty();
