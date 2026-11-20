@@ -28,7 +28,7 @@ services:
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: CORS_ORIGINS
-        value: https://sistema-contable-web.onrender.com,http://localhost:9000
+        value: https://sistema-contable-web-s0i1.onrender.com,http://localhost:9000
 
   - type: web
     runtime: static
@@ -48,7 +48,7 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: API_URL
-        value: https://sistema-contable-api.onrender.com/api
+        value: https://sistema-contable-api-s0i1.onrender.com/api
       - key: SUPABASE_URL
         value: https://xyukidsdmihmsmlpddqz.supabase.co
       - key: SUPABASE_PUBLISHABLE_KEY
