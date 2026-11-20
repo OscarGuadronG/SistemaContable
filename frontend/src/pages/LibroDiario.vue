@@ -294,7 +294,7 @@ const ORIGENES = [
   ['compra', 'Compra'],
   ['venta', 'Venta'],
   ['traslado', 'Traslado'],
-  ['ajuste', 'Ajuste de inventario'],
+  ['ajuste', 'Ajuste'],
   ['planilla', 'Planilla'],
   ['pago', 'Pago'],
   ['devolucion', 'Devolución'],

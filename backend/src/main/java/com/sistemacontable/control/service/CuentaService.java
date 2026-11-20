@@ -176,14 +176,28 @@ public class CuentaService {
         return cuentaDAO.findTodas();
     }
 
+    /**
+     * Arbol completo con UNA sola consulta: se agrupan las cuentas por padre en memoria (antes habia una consulta
+     * por cuenta, ~25 s con 127 cuentas a traves del pooler de Supabase). Los padres ya estan en el contexto de
+     * persistencia, asi que {@code getPadre()} no dispara consultas adicionales.
+     */
     public List<com.sistemacontable.boundary.dto.CuentaArbolDto> arbol() {
-        List<com.sistemacontable.boundary.dto.CuentaArbolDto> roots = new ArrayList<>();
-        for (Cuenta c : cuentaDAO.findTodas()) if (c.getPadre() == null) roots.add(arbol(c));
-        return List.copyOf(roots);
+        List<Cuenta> todas = cuentaDAO.findTodas();
+        java.util.Map<Long, List<Cuenta>> hijosPorPadre = new java.util.HashMap<>();
+        List<Cuenta> raices = new ArrayList<>();
+        for (Cuenta c : todas) {
+            if (c.getPadre() == null) raices.add(c);
+            else hijosPorPadre.computeIfAbsent(c.getPadre().getId(), k -> new ArrayList<>()).add(c);
+        }
+        java.util.Comparator<Cuenta> porCodigo = java.util.Comparator.comparing(c -> String.valueOf(c.getCodigo()));
+        raices.sort(porCodigo);
+        hijosPorPadre.values().forEach(l -> l.sort(porCodigo));
+        return raices.stream().map(c -> arbol(c, hijosPorPadre)).toList();
     }
 
-    private com.sistemacontable.boundary.dto.CuentaArbolDto arbol(Cuenta c) {
-        List<com.sistemacontable.boundary.dto.CuentaArbolDto> hijos = cuentaDAO.findHijos(c).stream().map(this::arbol).toList();
+    private com.sistemacontable.boundary.dto.CuentaArbolDto arbol(Cuenta c, java.util.Map<Long, List<Cuenta>> hijosPorPadre) {
+        List<com.sistemacontable.boundary.dto.CuentaArbolDto> hijos = hijosPorPadre.getOrDefault(c.getId(), List.of())
+                .stream().map(h -> arbol(h, hijosPorPadre)).toList();
         int n=String.valueOf(c.getCodigo()).length(); int nivel=n==1?1:n==2?2:n==4?3:n==5?4:n;
         return new com.sistemacontable.boundary.dto.CuentaArbolDto(c.getId(),c.getCodigo(),c.getNombre(),c.getNaturaleza(),c.getActivo(),c.getImputable(),nivel,hijos);
     }
