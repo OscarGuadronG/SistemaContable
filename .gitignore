@@ -5,3 +5,5 @@ target/
 **/.env
 **/server.env
 **/bootstrap.properties
+.~lock.*#
+frontend/.env
