@@ -4,6 +4,24 @@
 import { defineConfig } from '#q-app'
 
 export default defineConfig((/* ctx */) => {
+  // @quasar/app-vite 3 ya no inyecta claves arbitrarias de build.env al cliente
+  // (build.env configura dotenv). defineEnv es lo que las deja en import.meta.env.
+  // Se leen de process.env y, si existen, del .env que Quasar expone al config.
+  const variablesPublicas = {
+    API_URL:
+      process.env.API_URL ||
+      import.meta.env.API_URL ||
+      'http://localhost:9080/api',
+    SUPABASE_URL:
+      process.env.SUPABASE_URL ||
+      import.meta.env.SUPABASE_URL ||
+      'https://xyukidsdmihmsmlpddqz.supabase.co',
+    SUPABASE_PUBLISHABLE_KEY:
+      process.env.SUPABASE_PUBLISHABLE_KEY ||
+      import.meta.env.SUPABASE_PUBLISHABLE_KEY ||
+      'sb_publishable_sReom9tHSFYaC22i9kURHw_pi-I_JM6'
+  }
+
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
@@ -11,7 +29,7 @@ export default defineConfig((/* ctx */) => {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: [],
+    boot: ['supabase', 'auth'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
     css: ['app.scss'],
@@ -39,8 +57,9 @@ export default defineConfig((/* ctx */) => {
       // https://v2.quasar.dev/quasar-cli-vite/page-routing-with-vue-router#filename-based-routing
       // filenameBasedRouting: true,
 
-      vueRouterMode: 'hash' // available values: 'hash', 'history'
-      // vueRouterBase,
+      vueRouterMode: 'history', // available values: 'hash', 'history'
+      env: { ...variablesPublicas },
+      defineEnv: { ...variablesPublicas }
 
       // publicPath: '/',
       // define: {},
@@ -65,15 +84,21 @@ export default defineConfig((/* ctx */) => {
     devServer: {
       // vueDevtools: true,
       // https: true,
-      open: true // opens browser window automatically
+      port: 9000,
+      open: false
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
     framework: {
-      config: {},
+      config: {
+        notify: {
+          position: 'top',
+          timeout: 5000
+        }
+      },
 
       // iconSet: 'material-icons', // Quasar icon set
-      // lang: 'en-US', // Quasar language pack
+      lang: 'es',
 
       // For special cases outside of where the auto-import strategy can have an impact
       // (like functional components as one of the examples),
@@ -83,7 +108,7 @@ export default defineConfig((/* ctx */) => {
       // directives: [],
 
       // Quasar plugins
-      plugins: []
+      plugins: ['Notify', 'Dialog']
     },
 
     // animations: 'all', // --- includes all animations

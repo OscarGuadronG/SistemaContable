@@ -1,10 +1,105 @@
-// app global css
-.team-card {
-  border-radius: 12px;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+body {
+  background: #f3f5f8;
 }
 
-.team-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.10);
+.q-btn {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.pagina {
+  background: #f3f5f8;
+}
+
+.marca-logo {
+  background: #fff;
+  border-radius: 10px;
+  padding: 2px 6px;
+}
+
+.item-activo {
+  border-left: 3px solid var(--q-primary);
+}
+
+.tabla-app thead tr th {
+  font-weight: 600;
+  color: #3c4656;
+  background: #f6f8fb;
+}
+
+.tabla-app td,
+.tabla-app th {
+  white-space: nowrap;
+}
+
+.tabla-app td.col-texto,
+.tabla-app th.col-texto {
+  white-space: normal;
+}
+
+.monto {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.solo-imprimir {
+  display: none;
+}
+
+.hoja-ancha {
+  overflow-x: auto;
+}
+
+.arbol-cuenta {
+  border: 1px solid #e4e8ef;
+  border-radius: 10px;
+  background: #fff;
+}
+
+@media print {
+  .q-header,
+  .q-drawer,
+  .q-footer,
+  .no-imprimir,
+  .q-notifications {
+    display: none !important;
+  }
+
+  .q-page-container {
+    padding: 0 !important;
+  }
+
+  .q-page {
+    min-height: auto !important;
+    padding: 0 !important;
+  }
+
+  .solo-imprimir {
+    display: block !important;
+  }
+
+  body.print-dialogo .q-page-container {
+    display: none !important;
+  }
+
+  body.print-dialogo .q-dialog__backdrop {
+    display: none !important;
+  }
+
+  body.print-dialogo .q-dialog {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    box-shadow: none !important;
+  }
+}
+
+@page horizontal {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
+@media print {
+  body.print-horizontal .zona-impresion {
+    page: horizontal;
+  }
 }

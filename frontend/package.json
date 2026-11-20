@@ -23,6 +23,8 @@
   },
   "dependencies": {
     "@quasar/extras": "^2.1.0",
+    "@supabase/supabase-js": "^2.119.2",
+    "pinia": "^4.1.0",
     "quasar": "^2.35.0",
     "vue": "^3.5.22",
     "vue-router": "^5.0.6"
