@@ -17,6 +17,7 @@ import com.sistemacontable.control.PlanillaDetalleDAO;
 import com.sistemacontable.control.VentaDAO;
 import com.sistemacontable.control.exception.NoEncontradoException;
 import com.sistemacontable.control.exception.ReglaNegocioException;
+import com.sistemacontable.control.exception.ConflictoException;
 import com.sistemacontable.control.service.cmd.DepartamentoCmd;
 import com.sistemacontable.control.service.cmd.EmpleadoCmd;
 import com.sistemacontable.entity.Departamento;
@@ -194,9 +195,9 @@ class EmpleadoDepartamentoServiceTest {
 
         @Test
         void duiOIsssRepetidosSeRechazanConMensajeClaroAntesDeLaConstraint() {
-            ReglaNegocioException dui = assertThrows(ReglaNegocioException.class, () -> empleados.crear(
+            ConflictoException dui = assertThrows(ConflictoException.class, () -> empleados.crear(
                     new EmpleadoCmd("Luis", "Perez", null, 1L, bd("1"), null, "ISSS-2", "00000001-1")));
-            ReglaNegocioException isss = assertThrows(ReglaNegocioException.class, () -> empleados.crear(
+            ConflictoException isss = assertThrows(ConflictoException.class, () -> empleados.crear(
                     new EmpleadoCmd("Luis", "Perez", null, 1L, bd("1"), null, "ISSS-1", "00000002-2")));
 
             assertTrue(dui.getMessage().contains("DUI") && dui.getMessage().contains("00000001-1"), dui.getMessage());
@@ -224,7 +225,7 @@ class EmpleadoDepartamentoServiceTest {
             Empleado otro = empleado(11L, "00000002-2", "ISSS-2");
             when(empleadoDAO.findByDui("00000002-2")).thenReturn(Optional.of(otro));
 
-            assertThrows(ReglaNegocioException.class, () -> empleados.modificar(10L, new EmpleadoCmd("Ana", "Lopez",
+            assertThrows(ConflictoException.class, () -> empleados.modificar(10L, new EmpleadoCmd("Ana", "Lopez",
                     null, 1L, bd("1"), null, "ISSS-1", "00000002-2")));
             verify(empleadoDAO, never()).modificar(any());
         }

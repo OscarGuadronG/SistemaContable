@@ -12,9 +12,10 @@ import java.util.List;
 final class Bd {
 
     /** Tablas en orden seguro para borrar respetando las claves foraneas. */
-    private static final List<String> TABLAS = List.of("kardex_detalle", "kardex", "partida_detalle", "partida",
+    private static final List<String> TABLAS = List.of("partida_detalle", "partida", "periodo", "kardex_detalle", "kardex",
+            "pago_credito", "devolucion_compra_detalle", "devolucion_venta_detalle", "devolucion_compra", "devolucion_venta",
             "compra_detalle", "ventas_detalle", "existencias", "compra", "ventas", "planilla_detalle", "planilla",
-            "lote", "producto", "tipo_producto", "unidad_medida", "almacen", "empleado", "departamento", "cliente",
+            "lote", "producto", "tipo_producto", "unidad_medida", "almacen", "perfil", "empleado", "departamento", "cliente",
             "proveedor", "tercero", "cuentas");
 
     private Bd() {
@@ -42,6 +43,7 @@ final class Bd {
             em.getTransaction().begin();
             em.createNativeQuery("UPDATE public.cuentas SET id_padre = NULL").executeUpdate();
             em.createNativeQuery("UPDATE public.tipo_producto SET id_padre = NULL").executeUpdate();
+            em.createNativeQuery("UPDATE public.periodo SET id_partida_cierre = NULL, id_partida_apertura = NULL").executeUpdate();
             for (String tabla : TABLAS) {
                 em.createNativeQuery("DELETE FROM public." + tabla).executeUpdate();
             }

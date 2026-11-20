@@ -77,14 +77,14 @@ public class AjusteService {
         if (!entrada) {
             existenciasService.verificarDisponible(Map.of(new ClaveStock(lote.getId(), almacen.getId()), cantidad));
         }
-        Optional<BigDecimal> costo = existenciasService.costoPromedio(lote.getId());
+        Optional<BigDecimal> costo = existenciasService.costoEntradas(lote.getId(), almacen.getId());
 
         List<LineaAsiento> asiento = List.of();
         if (config.getBoolean(ConfigContable.AJUSTE_GENERA_PARTIDA)) {
             BigDecimal costoConocido = costo.orElseThrow(() -> new ReglaNegocioException(
                     "No se puede contabilizar el ajuste: el lote " + lote.getId() + " no tiene costo (sin compras)"));
             Cuenta inventario = partidaService.cuentaConfigurada(ConfigContable.CUENTA_INVENTARIO);
-            Cuenta cuentaAjuste = partidaService.cuentaConfigurada(ConfigContable.CUENTA_AJUSTE_INVENTARIO);
+            Cuenta cuentaAjuste = partidaService.cuentaConfigurada(entrada ? "cuenta.otros.ingresos" : "cuenta.otros.gastos");
             asiento = Asientos.ajuste(inventario, cuentaAjuste, Dinero.multiplicar(cantidad, costoConocido), entrada);
             if (!asiento.isEmpty()) {
                 ReglasPartida.validar(asiento);
@@ -103,6 +103,7 @@ public class AjusteService {
                 List.of(new DetalleKardex(lote, cantidad, costo.orElse(BigDecimal.ZERO))));
         Partida partida = asiento.isEmpty() ? null : partidaService.registrar(TipoPartida.Ajuste, LocalDate.now(),
                 "Ajuste de inventario: " + motivo, null, null, null, asiento);
+        if (partida != null) partida.setIdKardex(movimiento.kardex().getId());
         return new ResultadoAjuste(movimiento, partida);
     }
 }

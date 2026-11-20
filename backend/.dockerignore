@@ -1,0 +1,9 @@
+target/
+.git/
+.idea/
+.vscode/
+src/main/liberty/config/server.env
+src/main/liberty/config/bootstrap.properties
+.env
+.env.*
+!.env.example

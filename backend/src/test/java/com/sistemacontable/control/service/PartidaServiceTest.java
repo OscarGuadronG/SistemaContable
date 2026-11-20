@@ -14,6 +14,7 @@ import com.sistemacontable.control.CompraDAO;
 import com.sistemacontable.control.CuentaDAO;
 import com.sistemacontable.control.PartidaDAO;
 import com.sistemacontable.control.PartidaDetalleDAO;
+import com.sistemacontable.control.PeriodoDAO;
 import com.sistemacontable.control.TerceroDAO;
 import com.sistemacontable.control.VentaDAO;
 import com.sistemacontable.control.config.ConfigContable;
@@ -25,10 +26,12 @@ import com.sistemacontable.entity.Compra;
 import com.sistemacontable.entity.Cuenta;
 import com.sistemacontable.entity.Partida;
 import com.sistemacontable.entity.PartidaDetalle;
+import com.sistemacontable.entity.Periodo;
 import com.sistemacontable.entity.Tercero;
 import com.sistemacontable.entity.Venta;
 import com.sistemacontable.entity.enums.NaturalezaCuenta;
 import com.sistemacontable.entity.enums.TipoPartida;
+import com.sistemacontable.entity.enums.EstadoPeriodo;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -60,6 +63,7 @@ class PartidaServiceTest {
     VentaDAO ventaDAO;
     @Mock
     TerceroDAO terceroDAO;
+    @Mock PeriodoDAO periodoDAO;
     @Mock
     ConfigContable config;
     @InjectMocks
@@ -75,8 +79,27 @@ class PartidaServiceTest {
 
     @BeforeEach
     void preparar() {
+        Periodo periodo = new Periodo(); periodo.setEstado(EstadoPeriodo.Abierto);
+        when(periodoDAO.findByFechaParaActualizar(fecha)).thenReturn(Optional.of(periodo));
         when(cuentaDAO.buscarPorId(1L)).thenReturn(Optional.of(caja));
         when(cuentaDAO.buscarPorId(2L)).thenReturn(Optional.of(ventas));
+    }
+
+    @Test
+    void manualNoPuedeCrearCierreNiApertura() {
+        for (TipoPartida tipo : List.of(TipoPartida.Cierre,TipoPartida.Apertura)) {
+            assertThrows(ReglaNegocioException.class, () -> servicio.crear(new PartidaCmd(fecha,"prohibida",tipo,null,null,null,cmdCuadrado().lineas())));
+        }
+        noSeEscribioNada();
+    }
+
+    @Test
+    void registrarRechazaPeriodoCerradoAntesDeEscribir() {
+        Periodo cerrado=new Periodo(); cerrado.setEstado(EstadoPeriodo.Cerrado);
+        when(periodoDAO.findByFechaParaActualizar(fecha)).thenReturn(Optional.of(cerrado));
+        assertThrows(ReglaNegocioException.class, () -> servicio.registrar(TipoPartida.Ingreso,fecha,"x",null,null,null,
+                List.of(LineaAsiento.cargo(caja,bd("1")),LineaAsiento.abono(ventas,bd("1")))));
+        noSeEscribioNada();
     }
 
     private PartidaCmd cmdCuadrado() {

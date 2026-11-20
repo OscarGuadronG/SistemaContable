@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.mapper.ContabilidadMapper;
 import com.sistemacontable.control.service.BalanzaService;
 import jakarta.enterprise.context.RequestScoped;
@@ -18,6 +20,7 @@ import jakarta.ws.rs.core.Response;
  *
  * <p>Solo delega en {@link BalanzaService}: sin reglas de negocio ni acceso a datos.</p>
  */
+@Roles({RolApp.Contabilidad})
 @Path("/balanza")
 @RequestScoped
 @Transactional

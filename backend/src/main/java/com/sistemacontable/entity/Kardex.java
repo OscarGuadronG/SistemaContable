@@ -40,6 +40,16 @@ public class Kardex extends EntidadBase {
     @Column(name = "descripcion")
     private String descripcion;
 
+    @Column(name = "gastos_adicionales") private java.math.BigDecimal gastosAdicionales = java.math.BigDecimal.ZERO;
+    @Column(name = "id_devolucion_compra") private Long idDevolucionCompra;
+    @Column(name = "id_devolucion_venta") private Long idDevolucionVenta;
+    public java.math.BigDecimal getGastosAdicionales() { return gastosAdicionales; }
+    public void setGastosAdicionales(java.math.BigDecimal v) { gastosAdicionales = v; }
+    public Long getIdDevolucionCompra() { return idDevolucionCompra; }
+    public void setIdDevolucionCompra(Long v) { idDevolucionCompra = v; }
+    public Long getIdDevolucionVenta() { return idDevolucionVenta; }
+    public void setIdDevolucionVenta(Long v) { idDevolucionVenta = v; }
+
     public TipoMovimiento getTipoMovimiento() {
         return tipoMovimiento;
     }

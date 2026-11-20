@@ -114,13 +114,13 @@ class ConfigContableTest {
         assertEquals(0, new BigDecimal("0.13").compareTo(c.getBigDecimal("iva.tasa")));
         assertEquals(0, new BigDecimal("0.03").compareTo(c.getBigDecimal("isss.tasa.empleado")));
         assertEquals(240, c.getInt("horas.mes"));
-        assertFalse(c.getBoolean("ajuste.genera.partida"));
-        // la forma de pago no es configuracion: viaja en cada orden como porcentajeContado
+        assertTrue(c.getBoolean("ajuste.genera.partida"));
+        // La forma de pago viaja en cada orden y se persiste en su documento.
         assertFalse(c.tiene("venta.contado"));
         for (String clave : new String[] {"cuenta.inventario", "cuenta.iva.credito", "cuenta.proveedores",
             "cuenta.caja", "cuenta.clientes", "cuenta.ventas", "cuenta.iva.debito", "cuenta.costo.ventas",
             "cuenta.sueldos", "cuenta.retenciones.isss", "cuenta.retenciones.afp", "cuenta.retenciones.renta",
-            "cuenta.bancos", "cuenta.ajuste.inventario"}) {
+            "cuenta.bancos", "cuenta.otros.gastos", "cuenta.otros.ingresos"}) {
             assertTrue(c.getInt(clave) > 0, clave);
         }
     }

@@ -59,11 +59,11 @@ class JerarquiaYReglasCuentaTest {
     // --------------------------------------------------------------------------------- ReglasCuenta
 
     @Test
-    void elCodigoDelHijoEmpiezaPorElDelPadreYEsMasLargo() {
+    void elCodigoDelHijoUsaPrefijoYLongitudDelNivelSiguiente() {
         Cuenta padre = cuenta(1, 11, null);
 
         assertTrue(ReglasCuenta.codigoCompatibleConPadre(1101, padre));
-        assertTrue(ReglasCuenta.codigoCompatibleConPadre(111, padre));
+        assertFalse(ReglasCuenta.codigoCompatibleConPadre(111, padre));
         assertFalse(ReglasCuenta.codigoCompatibleConPadre(21, padre));
         assertFalse(ReglasCuenta.codigoCompatibleConPadre(1, padre));
         assertFalse(ReglasCuenta.codigoCompatibleConPadre(11, padre));

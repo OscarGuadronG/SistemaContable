@@ -29,6 +29,13 @@ public class PartidaDetalleDAO extends AbstractDAO<PartidaDetalle, Long> {
     /** Totales de cargo y abono de una cuenta en un periodo. */
     public record SumaCuenta(Long cuentaId, BigDecimal totalCargo, BigDecimal totalAbono) {
     }
+    public record TotalesPartida(BigDecimal cargo,BigDecimal abono) { }
+
+    public TotalesPartida totalesPorPartida(Long partidaId) {
+        Object[] valores=em().createQuery("SELECT COALESCE(SUM(d.cargo),0),COALESCE(SUM(d.abono),0) FROM PartidaDetalle d WHERE d.partida.id=:id",Object[].class)
+                .setParameter("id",partidaId).getSingleResult();
+        return new TotalesPartida((BigDecimal)valores[0],(BigDecimal)valores[1]);
+    }
 
     /** Lineas de una partida, en orden de insercion. */
     public List<PartidaDetalle> buscarPorPartida(Long partidaId) {
@@ -59,5 +66,32 @@ public class PartidaDetalleDAO extends AbstractDAO<PartidaDetalle, Long> {
         return filas.stream()
                 .map(f -> new SumaCuenta(((Number) f[0]).longValue(), (BigDecimal) f[1], (BigDecimal) f[2]))
                 .toList();
+    }
+
+    public List<SumaCuenta> sumasPorCuenta(LocalDate desde, LocalDate hasta, com.sistemacontable.entity.enums.TipoPartida tipo) {
+        List<Object[]> filas = em().createQuery("SELECT d.cuenta.id, SUM(d.cargo), SUM(d.abono) FROM PartidaDetalle d "
+                + "WHERE d.partida.fecha BETWEEN :desde AND :hasta AND d.partida.tipo = :tipo "
+                + "GROUP BY d.cuenta.id ORDER BY d.cuenta.id", Object[].class)
+                .setParameter("desde", desde).setParameter("hasta", hasta).setParameter("tipo", tipo).getResultList();
+        return filas.stream().map(f -> new SumaCuenta(((Number) f[0]).longValue(), (BigDecimal) f[1], (BigDecimal) f[2])).toList();
+    }
+
+    public List<SumaCuenta> sumasComprobacion(LocalDate desde, LocalDate hasta) {
+        List<Object[]> filas = em().createQuery("SELECT d.cuenta.id, SUM(d.cargo), SUM(d.abono) FROM PartidaDetalle d "
+                + "WHERE d.partida.fecha BETWEEN :desde AND :hasta AND d.partida.tipo NOT IN (:ajuste,:cierre) "
+                + "GROUP BY d.cuenta.id ORDER BY d.cuenta.id", Object[].class)
+                .setParameter("desde", desde).setParameter("hasta", hasta)
+                .setParameter("ajuste",com.sistemacontable.entity.enums.TipoPartida.Ajuste)
+                .setParameter("cierre",com.sistemacontable.entity.enums.TipoPartida.Cierre).getResultList();
+        return filas.stream().map(f -> new SumaCuenta(((Number) f[0]).longValue(), (BigDecimal) f[1], (BigDecimal) f[2])).toList();
+    }
+
+    public List<SumaCuenta> sumasPorPeriodo(Long periodoId) {
+        List<Object[]> filas = em().createQuery("SELECT d.cuenta.id, SUM(d.cargo), SUM(d.abono) FROM PartidaDetalle d "
+                + "WHERE d.partida.periodo.id = :periodo AND d.partida.tipo <> :cierre "
+                + "GROUP BY d.cuenta.id ORDER BY d.cuenta.id", Object[].class)
+                .setParameter("periodo", periodoId).setParameter("cierre", com.sistemacontable.entity.enums.TipoPartida.Cierre)
+                .getResultList();
+        return filas.stream().map(f -> new SumaCuenta(((Number) f[0]).longValue(), (BigDecimal) f[1], (BigDecimal) f[2])).toList();
     }
 }

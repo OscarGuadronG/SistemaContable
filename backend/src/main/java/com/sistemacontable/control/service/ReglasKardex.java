@@ -50,6 +50,10 @@ public final class ReglasKardex {
                 exigir((origen == null) != (destino == null), "Un ajuste lleva exactamente un almacen (origen o destino)");
                 exigir(compra == null && venta == null, "Un ajuste no se liga a compra ni a venta");
             }
+            case Devolucion -> {
+                exigir((origen == null) != (destino == null), "Una devolución lleva exactamente un almacén de origen o destino");
+                exigir(compra == null && venta == null, "Una devolución se liga por su id_devolucion");
+            }
             default -> throw new ReglaNegocioException("Tipo de movimiento no soportado: " + tipo);
         }
         validarDetalles(detalles);

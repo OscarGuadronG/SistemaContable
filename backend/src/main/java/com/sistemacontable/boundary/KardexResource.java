@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.mapper.InventarioMapper;
 import com.sistemacontable.control.service.KardexService;
 import com.sistemacontable.entity.Kardex;
@@ -21,6 +23,7 @@ import jakarta.ws.rs.core.Response;
  *
  * <p>Solo delega en {@link KardexService}: sin reglas de negocio ni acceso a datos.</p>
  */
+@Roles({RolApp.Bodega, RolApp.Contabilidad})
 @Path("/kardex")
 @RequestScoped
 @Transactional

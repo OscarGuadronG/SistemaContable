@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.dto.CuentaRequest;
 import com.sistemacontable.boundary.mapper.CatalogoMapper;
 import com.sistemacontable.control.service.CuentaService;
@@ -9,6 +11,7 @@ import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.PUT;
@@ -27,6 +30,7 @@ import jakarta.ws.rs.core.UriInfo;
  * <p>Solo delega en {@link CuentaService}: sin reglas de negocio ni acceso a datos. La transaccion abarca la
  * peticion para que el mapeo a DTO lea las relaciones perezosas dentro de ella.</p>
  */
+@Roles({RolApp.Contabilidad})
 @Path("/cuentas")
 @RequestScoped
 @Transactional
@@ -51,12 +55,14 @@ public class CuentaResource {
         return Respuestas.ok(CatalogoMapper.cuenta(servicio.buscarPorId(id)));
     }
 
+    @Roles({RolApp.Contabilidad})
     @POST
     public Response crear(@Valid CuentaRequest cuerpo, @Context UriInfo uriInfo) {
         var creado = servicio.crear(Respuestas.requerir(cuerpo).aCmd());
         return Respuestas.creado(uriInfo, "cuentas", creado.getId(), CatalogoMapper.cuenta(creado));
     }
 
+    @Roles({RolApp.Contabilidad})
     @PUT
     @Path("/{id}")
     public Response modificar(@PathParam("id") Long id, @Valid CuentaRequest cuerpo) {
@@ -64,6 +70,7 @@ public class CuentaResource {
     }
 
     /** Reactiva la cuenta. */
+    @Roles({RolApp.Contabilidad})
     @POST
     @Path("/{id}/activar")
     public Response activar(@PathParam("id") Long id) {
@@ -71,9 +78,23 @@ public class CuentaResource {
     }
 
     /** Desactiva la cuenta (no se borra): falla si tiene hijas activas o movimientos. */
+    @Roles({RolApp.Contabilidad})
     @POST
     @Path("/{id}/desactivar")
     public Response desactivar(@PathParam("id") Long id) {
         return Respuestas.ok(CatalogoMapper.cuenta(servicio.desactivar(id)));
+    }
+
+    @DELETE
+    @Path("/{id}")
+    public Response eliminar(@PathParam("id") Long id) {
+        servicio.eliminar(id);
+        return Respuestas.sinContenido();
+    }
+
+    @GET
+    @Path("/arbol")
+    public Response arbol() {
+        return Respuestas.ok(servicio.arbol());
     }
 }

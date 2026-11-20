@@ -9,8 +9,7 @@ public final class ReglasCuenta {
     }
 
     /**
-     * El codigo de una cuenta hija debe empezar por el codigo del padre y ser mas largo que el (p. ej. padre 11,
-     * hijas 111 o 1101). La comparacion es sobre la representacion decimal de los enteros.
+     * El código de una hija debe llevar el prefijo del padre y la longitud del nivel siguiente: 1, 2, 4 o 5 dígitos.
      */
     public static boolean codigoCompatibleConPadre(Integer codigo, Cuenta padre) {
         return codigoCompatible(codigo, padre.getCodigo());
@@ -20,6 +19,13 @@ public final class ReglasCuenta {
     public static boolean codigoCompatible(Integer codigoHijo, Integer codigoPadre) {
         String hijo = String.valueOf(codigoHijo);
         String prefijo = String.valueOf(codigoPadre);
-        return hijo.length() > prefijo.length() && hijo.startsWith(prefijo);
+        int longitudSiguiente = switch (prefijo.length()) { case 1 -> 2; case 2 -> 4; case 4 -> 5; default -> -1; };
+        return hijo.length() == longitudSiguiente && hijo.startsWith(prefijo);
+    }
+
+    public static boolean codigoDeNivelValido(Integer codigo) {
+        if(codigo==null||codigo<=0) return false;
+        int longitud=String.valueOf(codigo).length();
+        return longitud==1||longitud==2||longitud==4||longitud==5;
     }
 }

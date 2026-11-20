@@ -46,7 +46,7 @@ class EstructuraDAOsTest {
             reales.add(d.getSimpleName());
         }
         assertEquals(esperados, reales);
-        assertEquals(22, reales.size());
+        assertEquals(28, reales.size());
     }
 
     @ParameterizedTest

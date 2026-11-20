@@ -21,6 +21,7 @@ import com.sistemacontable.control.service.ResultadoAjuste;
 import com.sistemacontable.control.service.ResultadoCompra;
 import com.sistemacontable.control.service.cmd.AjusteCmd;
 import com.sistemacontable.control.service.cmd.CompraCmd;
+import com.sistemacontable.entity.enums.FormaPago;
 import com.sistemacontable.control.service.cmd.CuentaCmd;
 import com.sistemacontable.control.service.cmd.DepartamentoCmd;
 import com.sistemacontable.control.service.cmd.LineaCompraCmd;
@@ -153,7 +154,7 @@ class RecursosRestTest {
 
     @Test
     void todosLosListadosPaginanYExponenElTotal() {
-        when(s.empleados.contar()).thenReturn(1L);
+        when(s.empleados.contar(null,null,null)).thenReturn(1L);
         when(s.cuentas.contar()).thenReturn(2L);
         when(s.terceros.contar()).thenReturn(3L);
         when(s.clientes.contar()).thenReturn(4L);
@@ -163,12 +164,12 @@ class RecursosRestTest {
         when(s.productos.contar()).thenReturn(8L);
         when(s.lotes.contar()).thenReturn(9L);
         when(s.almacenes.contar()).thenReturn(10L);
-        when(s.compras.contar()).thenReturn(11L);
-        when(s.ventas.contar()).thenReturn(12L);
+        when(s.compras.contar(null,null,null,null)).thenReturn(11L);
+        when(s.ventas.contar(null,null,null,null)).thenReturn(12L);
         when(s.kardex.contar()).thenReturn(13L);
         when(s.existencias.contar()).thenReturn(14L);
-        when(s.partidas.contar()).thenReturn(15L);
-        when(s.planillas.contar()).thenReturn(16L);
+        when(s.partidas.contarBuscar(null,null,null,null,null,null)).thenReturn(15L);
+        when(s.planillas.contar(null,null,null)).thenReturn(16L);
         String[] rutas = {"/empleados", "/cuentas", "/terceros", "/clientes", "/proveedores", "/unidades-medida",
                 "/tipos-producto", "/productos", "/lotes", "/almacenes", "/compras", "/ventas", "/kardex",
                 "/existencias", "/partidas", "/planillas"};
@@ -312,12 +313,10 @@ class RecursosRestTest {
     // ------------------------------------------------------------------------ metodos no permitidos
 
     @Test
-    void lasCuentasNoSeBorranConDeleteYElRecursoLoDeclara() {
-        Response r = s.delete("/cuentas/1");
-
-        assertEquals(405, r.getStatus());
-        assertNotNull(r.getHeaderString("Allow"));
-        assertEquals("HTTP_405", json(r).getString("codigo"));
+    void eliminarCuentaSinReferenciasDelegaYDevuelve204() {
+        Response r=s.delete("/cuentas/1");
+        assertEquals(204,r.getStatus());
+        verify(s.cuentas).eliminar(1L);
     }
 
     @Test
@@ -406,7 +405,7 @@ class RecursosRestTest {
                 new BigDecimal("2.67"), new BigDecimal("23.17")));
 
         Response r = s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"fecha\":\"2026-03-01\","
-                + "\"porcentajeContado\":40,\"lineas\":[{\"loteId\":5,\"almacenId\":2,\"cantidad\":2,\"precio\":10.25}]}");
+                + "\"formaPago\":\"Contado\",\"lineas\":[{\"loteId\":5,\"almacenId\":2,\"cantidad\":2,\"precio\":10.25}]}");
 
         assertEquals(201, r.getStatus());
         assertTrue(r.getHeaderString("Location").endsWith("/compras/10"), r.getHeaderString("Location"));
@@ -419,13 +418,12 @@ class RecursosRestTest {
         assertEquals("Entrada", dto.getJsonArray("movimientos").getJsonObject(0).getString("tipoMovimiento"));
         ArgumentCaptor<CompraCmd> cmd = ArgumentCaptor.forClass(CompraCmd.class);
         verify(s.compras).registrar(cmd.capture());
-        assertEquals(new CompraCmd(3L, 4L, LocalDate.of(2026, 3, 1), null,
-                new BigDecimal("40"),
-                List.of(new LineaCompraCmd(5L, 2L, new BigDecimal("2"), new BigDecimal("10.25")))), cmd.getValue());
+        assertEquals(new CompraCmd(3L,4L,LocalDate.of(2026,3,1),null,null,FormaPago.Contado,null,null,null,
+                List.of(new LineaCompraCmd(5L,null,2L, new BigDecimal("2"), new BigDecimal("10.25")))), cmd.getValue());
     }
 
     @Test
-    void registrarUnaVentaPasaElPorcentajeDeContadoAlComando() {
+    void registrarUnaVentaRecibeProductoFormaPagoYAlmacen() {
         Venta venta = conId(new Venta(), 11L);
         venta.setFecha(LocalDate.of(2026, 3, 1));
         venta.setCliente(conId(new Cliente(), 3L));
@@ -435,15 +433,15 @@ class RecursosRestTest {
                 new BigDecimal("8.00")));
 
         Response r = s.post("/ventas", "{\"clienteId\":3,\"empleadoId\":4,\"fecha\":\"2026-03-01\","
-                + "\"porcentajeContado\":33.33,\"lineas\":[{\"loteId\":5,\"almacenId\":2,\"cantidad\":2,"
-                + "\"precio\":10}]}");
+                + "\"formaPago\":\"Credito\",\"almacenId\":2,\"lineas\":[{\"productoId\":5,\"cantidad\":2"
+                + "}]}");
 
         assertEquals(201, r.getStatus());
         assertEquals(51, json(r).getInt("partidaId"));
         ArgumentCaptor<VentaCmd> cmd = ArgumentCaptor.forClass(VentaCmd.class);
         verify(s.ventas).registrar(cmd.capture());
-        assertEquals(new VentaCmd(3L, 4L, LocalDate.of(2026, 3, 1), null, new BigDecimal("33.33"),
-                List.of(new LineaVentaCmd(5L, 2L, new BigDecimal("2"), new BigDecimal("10")))), cmd.getValue());
+        assertEquals(new VentaCmd(3L,4L,2L,LocalDate.of(2026,3,1),null,null,FormaPago.Credito,null,null,
+                List.of(new LineaVentaCmd(5L,new BigDecimal("2")))), cmd.getValue());
     }
 
     @Test
@@ -451,7 +449,7 @@ class RecursosRestTest {
         when(s.compras.registrar(any())).thenThrow(new EJBException(
                 new ReglaNegocioException("El almacen 2 esta deshabilitado")));
 
-        Response r = s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"porcentajeContado\":0}");
+        Response r = s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"formaPago\":\"Credito\"}");
 
         assertEquals(422, r.getStatus());
         JsonObject error = json(r);
@@ -463,7 +461,7 @@ class RecursosRestTest {
     void unNoEncontradoEnvueltoPorElContenedorSigueSiendo404() {
         when(s.compras.registrar(any())).thenThrow(new EJBException(new NoEncontradoException("Proveedor", 3L)));
 
-        assertEquals(404, s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"porcentajeContado\":0}").getStatus());
+        assertEquals(404, s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"formaPago\":\"Credito\"}").getStatus());
     }
 
     @Test
@@ -471,7 +469,7 @@ class RecursosRestTest {
         when(s.compras.registrar(any())).thenThrow(new RuntimeException(
                 "ERROR: relation \"public.compra\" does not exist; INSERT INTO compra ..."));
 
-        Response r = s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"porcentajeContado\":0}");
+        Response r = s.post("/compras", "{\"proveedorId\":3,\"empleadoId\":4,\"formaPago\":\"Credito\"}");
 
         assertEquals(500, r.getStatus());
         String cuerpo = r.readEntity(String.class);
@@ -502,8 +500,8 @@ class RecursosRestTest {
 
     @Test
     void elListadoDeComprasNoIncluyeLineas() {
-        when(s.compras.listar(0, 50)).thenReturn(List.of(compra(10)));
-        when(s.compras.contar()).thenReturn(1L);
+        when(s.compras.buscar(null,null,null,null,0,50)).thenReturn(List.of(compra(10)));
+        when(s.compras.contar(null,null,null,null)).thenReturn(1L);
 
         String cuerpo = s.get("/compras").readEntity(String.class);
 
@@ -514,19 +512,19 @@ class RecursosRestTest {
     // ------------------------------------------------------------------ traslados, ajustes, kardex
 
     @Test
-    void unTrasladoApuntaConLocationAlKardex() {
+    void unTrasladoApuntaConLocationAlDetalleDelTraslado() {
         Kardex k = conId(new Kardex(), 30L);
         k.setTipoMovimiento(TipoMovimiento.Traslado);
         k.setOrigen(conId(new Almacen(), 1L));
         k.setDestino(conId(new Almacen(), 2L));
-        when(s.traslados.registrar(any(TrasladoCmd.class))).thenReturn(new MovimientoKardex(k, List.of()));
+        when(s.traslados.registrar(any(TrasladoCmd.class))).thenReturn(new com.sistemacontable.control.service.ResultadoTraslado(new MovimientoKardex(k,List.of()),null,List.of(),BigDecimal.ZERO,BigDecimal.ZERO));
 
         Response r = s.post("/traslados", "{\"almacenOrigenId\":1,\"almacenDestinoId\":2,\"lineas\":"
                 + "[{\"loteId\":5,\"cantidad\":3}]}");
 
         assertEquals(201, r.getStatus());
-        assertTrue(r.getHeaderString("Location").endsWith("/kardex/30"), r.getHeaderString("Location"));
-        assertEquals("Traslado", json(r).getString("tipoMovimiento"));
+        assertTrue(r.getHeaderString("Location").endsWith("/traslados/30"), r.getHeaderString("Location"));
+        assertEquals(30,json(r).getInt("kardexId"));
     }
 
     @Test

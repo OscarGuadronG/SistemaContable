@@ -222,7 +222,7 @@ class MapeadoresTest {
         VentaDto dto = InventarioMapper.venta(v, List.of(d));
 
         assertEquals(7L, dto.clienteId());
-        assertEquals(List.of(new VentaDto.Linea(101L, 5L, 6L, BigDecimal.ONE, new BigDecimal("30"))), dto.lineas());
+        assertEquals(List.of(new VentaDto.Linea(101L,5L,6L,BigDecimal.ONE,new BigDecimal("30"),BigDecimal.ZERO)), dto.lineas());
     }
 
     // ------------------------------------------------------------------------------------- kardex
@@ -357,9 +357,10 @@ class MapeadoresTest {
         assertEquals(10L, dto.compraId());
         assertNull(dto.ventaId());
         assertEquals(2L, dto.terceroId());
+        assertEquals("compra",dto.origen());
         assertEquals(List.of(
-                new PartidaDto.Linea(600L, 1L, new BigDecimal("100.00"), BigDecimal.ZERO),
-                new PartidaDto.Linea(601L, 2L, BigDecimal.ZERO, new BigDecimal("100.00"))), dto.lineas());
+                new PartidaDto.Linea(600L, 1L,new PartidaDto.CuentaRef(1L,null,null),new BigDecimal("100.00"), BigDecimal.ZERO),
+                new PartidaDto.Linea(601L, 2L,new PartidaDto.CuentaRef(2L,null,null),BigDecimal.ZERO, new BigDecimal("100.00"))), dto.lineas());
     }
 
     @Test

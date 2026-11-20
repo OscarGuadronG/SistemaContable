@@ -14,6 +14,9 @@ public record KardexDto(Long id,
         Long compraId,
         Long ventaId,
         String descripcion,
+        BigDecimal gastosAdicionales,
+        Long idDevolucionCompra,
+        Long idDevolucionVenta,
         List<Linea> lineas) {
 
     /** Linea de un movimiento: lote, cantidad (siempre positiva) y costo unitario. */

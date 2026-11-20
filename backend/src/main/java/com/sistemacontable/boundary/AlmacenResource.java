@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.dto.AlmacenRequest;
 import com.sistemacontable.boundary.mapper.CatalogoMapper;
 import com.sistemacontable.control.service.AlmacenService;
@@ -28,6 +30,7 @@ import jakarta.ws.rs.core.UriInfo;
  * <p>Solo delega en {@link AlmacenService}: sin reglas de negocio ni acceso a datos. La transaccion abarca la
  * peticion para que el mapeo a DTO lea las relaciones perezosas dentro de ella.</p>
  */
+@Roles({RolApp.Ventas, RolApp.Bodega, RolApp.Contabilidad})
 @Path("/almacenes")
 @RequestScoped
 @Transactional
@@ -52,18 +55,21 @@ public class AlmacenResource {
         return Respuestas.ok(CatalogoMapper.almacen(servicio.buscarPorId(id)));
     }
 
+    @Roles({RolApp.Administrador})
     @POST
     public Response crear(@Valid AlmacenRequest cuerpo, @Context UriInfo uriInfo) {
         var creado = servicio.crear(Respuestas.requerir(cuerpo).aCmd());
         return Respuestas.creado(uriInfo, "almacenes", creado.getId(), CatalogoMapper.almacen(creado));
     }
 
+    @Roles({RolApp.Administrador})
     @PUT
     @Path("/{id}")
     public Response modificar(@PathParam("id") Long id, @Valid AlmacenRequest cuerpo) {
         return Respuestas.ok(CatalogoMapper.almacen(servicio.modificar(id, Respuestas.requerir(cuerpo).aCmd())));
     }
 
+    @Roles({RolApp.Administrador})
     @DELETE
     @Path("/{id}")
     public Response eliminar(@PathParam("id") Long id) {

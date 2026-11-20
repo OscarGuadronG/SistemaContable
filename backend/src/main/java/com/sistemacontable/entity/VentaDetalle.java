@@ -38,6 +38,12 @@ public class VentaDetalle extends EntidadBase {
     @PositiveOrZero
     private BigDecimal precio;
 
+    @Column(name = "costo_unitario", nullable = false)
+    @NotNull @PositiveOrZero
+    private BigDecimal costoUnitario = BigDecimal.ZERO;
+    public BigDecimal getCostoUnitario() { return costoUnitario; }
+    public void setCostoUnitario(BigDecimal v) { costoUnitario = v; }
+
     public Venta getVenta() {
         return venta;
     }

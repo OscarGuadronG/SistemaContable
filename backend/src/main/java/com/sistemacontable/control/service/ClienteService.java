@@ -69,7 +69,7 @@ public class ClienteService {
         String nit = Validaciones.texto(cmd.nit(), "NIT");
         clienteDAO.findByNit(nit).ifPresent(otro -> {
             if (!otro.equals(cliente)) {
-                throw new ReglaNegocioException("Ya existe un cliente con el NIT " + nit);
+                throw new com.sistemacontable.control.exception.ConflictoException("Ya existe un cliente con el NIT " + nit);
             }
         });
         cliente.setNombre(nombre);

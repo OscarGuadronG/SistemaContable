@@ -29,6 +29,7 @@ import com.sistemacontable.entity.Venta;
 import com.sistemacontable.entity.VentaDetalle;
 import com.sistemacontable.entity.enums.TipoMovimiento;
 import com.sistemacontable.entity.enums.TipoPartida;
+import com.sistemacontable.entity.enums.FormaPago;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
@@ -51,6 +52,7 @@ import org.junit.jupiter.api.Test;
 class InventarioH2Test {
 
     private EntityManagerFactory emf;
+    private Long productoId;
     private Long proveedorId;
     private Long empleadoId;
     private Long clienteId;
@@ -69,6 +71,7 @@ class InventarioH2Test {
             em.getTransaction().begin();
             EscenarioContable esc = new EscenarioContable(em);
             em.getTransaction().commit();
+            productoId = esc.producto.getId();
             proveedorId = esc.proveedor.getId();
             empleadoId = esc.empleado.getId();
             clienteId = esc.cliente.getId();
@@ -123,9 +126,8 @@ class InventarioH2Test {
     }
 
     private void comprar(Long lote, Long almacen, String cantidad, String precio) {
-        transaccion(c -> c.obtener(CompraService.class).registrar(new CompraCmd(proveedorId, empleadoId, null, "Compra",
-                bd("0"),
-                List.of(new LineaCompraCmd(lote, almacen, bd(cantidad), bd(precio))))));
+        transaccion(c -> c.obtener(CompraService.class).registrar(compra(lote,almacen,cantidad,precio,FormaPago.Credito)));
+
     }
 
     /** Fotografia del estado: filas por tabla relevante y stock de los dos lotes en el almacen A. */
@@ -151,532 +153,121 @@ class InventarioH2Test {
                 .setParameter("p", p).getResultList();
     }
 
-    // ------------------------------------------------------------------------------------- compra
-
-    @Test
-    void laCompraActualizaExistenciasKardexYPartidaCuadrada() {
-        ResultadoCompra r = transaccion(c -> c.obtener(CompraService.class).registrar(new CompraCmd(proveedorId,
-                empleadoId, LocalDate.of(2026, 5, 4), "Reposicion", bd("0"), List.of(
-                        new LineaCompraCmd(loteA, almacenA, bd("10"), bd("5.00")),
-                        new LineaCompraCmd(loteB, almacenA, bd("4"), bd("25.50"))))));
-
-        assertEquals(bd("171.76"), r.total());
-        leer(em -> {
-            assertEquals(0, bd("10").compareTo(Bd.stock(em, loteA, almacenA)));
-            assertEquals(0, bd("4").compareTo(Bd.stock(em, loteB, almacenA)));
-            List<Kardex> kardex = em.createQuery("SELECT k FROM Kardex k ORDER BY k.id", Kardex.class).getResultList();
-            assertEquals(2, kardex.size());
-            for (Kardex k : kardex) {
-                assertEquals(TipoMovimiento.Entrada, k.getTipoMovimiento());
-                assertNull(k.getOrigen());
-                assertEquals(almacenA, k.getDestino().getId());
-                assertEquals(r.compra().getId(), k.getCompra().getId());
-                assertNull(k.getVenta());
-            }
-            List<KardexDetalle> detalles = em.createQuery("SELECT d FROM KardexDetalle d ORDER BY d.id",
-                    KardexDetalle.class).getResultList();
-            // el orden de insercion de filas hermanas no esta garantizado: se comparan los costos ordenados
-            assertEquals(List.of(bd("5"), bd("25.5")), detalles.stream()
-                    .map(d -> d.getPrecioCosto().stripTrailingZeros()).sorted().toList());
-            Partida p = em.find(Partida.class, r.partida().getId());
-            assertEquals(TipoPartida.Diario, p.getTipo());
-            assertEquals(r.compra().getId(), p.getCompra().getId());
-            List<PartidaDetalle> lineas = lineasDe(em, p);
-            assertEquals(3, lineas.size());
-            assertEquals(0, bd("171.76").compareTo(suma(lineas, true)));
-            assertEquals(0, suma(lineas, true).compareTo(suma(lineas, false)));
+    private CompraCmd compra(Long lote,Long almacen,String cantidad,String precio,FormaPago forma) {
+        return new CompraCmd(proveedorId,empleadoId,null,"CCF",null,forma,forma==FormaPago.Cheque ? "001" : null,
+                BigDecimal.ZERO,BigDecimal.ZERO,List.of(new LineaCompraCmd(lote,null,almacen,bd(cantidad),bd(precio))));
+    }
+    private VentaCmd venta(String cantidad,FormaPago forma) {
+        return new VentaCmd(clienteId,empleadoId,almacenA,null,"FAC",null,forma,forma==FormaPago.Cheque ? "002" : null,
+                BigDecimal.ZERO,List.of(new LineaVentaCmd(productoId,bd(cantidad))));
+    }
+    private void cuadrada(Partida p) {
+        leer(em -> {var lineas=lineasDe(em,em.find(Partida.class,p.getId()));
+            assertEquals(0,suma(lineas,true).compareTo(suma(lineas,false)));return null;});
+    }
+    @Test void compraAgrupaKardexPorAlmacenYActualizaStock() {
+        var r=transaccion(c->c.obtener(CompraService.class).registrar(new CompraCmd(proveedorId,empleadoId,null,"CCF",null,FormaPago.Credito,null,
+                BigDecimal.ZERO,BigDecimal.ZERO,List.of(new LineaCompraCmd(loteA,null,almacenA,bd("10"),bd("5")),new LineaCompraCmd(loteB,null,almacenA,bd("4"),bd("25.50"))))));
+        assertEquals(bd("171.76"),r.total());assertEquals(1,r.movimientos().size());
+        leer(em->{assertEquals(0,bd("10").compareTo(Bd.stock(em,loteA,almacenA)));assertEquals(0,bd("4").compareTo(Bd.stock(em,loteB,almacenA)));return null;});
+        cuadrada(r.partida());
+    }
+    @Test void compraAcumulaLineasRepetidasEnUnaExistencia() {
+        transaccion(c->c.obtener(CompraService.class).registrar(new CompraCmd(proveedorId,empleadoId,null,null,null,FormaPago.Contado,null,null,null,
+                List.of(new LineaCompraCmd(loteA,null,almacenA,bd("3"),bd("2")),new LineaCompraCmd(loteA,null,almacenA,bd("4"),bd("2"))))));
+        leer(em->{assertEquals(0,bd("7").compareTo(Bd.stock(em,loteA,almacenA)));assertEquals(1,Bd.contar(em,Existencias.class));return null;});
+    }
+    @Test void compraEnAlmacenCerradoNoDejaDatos() {
+        var antes=estado();assertThrows(ReglaNegocioException.class,()->transaccion(c->c.obtener(CompraService.class).registrar(compra(loteA,almacenCerrado,"1","1",FormaPago.Contado))));assertEquals(antes,estado());
+    }
+    @Test void comprasContadoChequeCreditoUsanCuentaYTipoCorrectos() {
+        for(FormaPago forma:FormaPago.values()) {
+            var r=transaccion(c->c.obtener(CompraService.class).registrar(compra(loteA,almacenA,"2","10",forma)));
+            leer(em->{Partida p=em.find(Partida.class,r.partida().getId());assertEquals(forma==FormaPago.Credito?TipoPartida.Diario:TipoPartida.Egreso,p.getTipo());
+                int codigo=forma==FormaPago.Credito?2101:forma==FormaPago.Cheque?11031:1101;
+                assertEquals(0,bd("22.60").compareTo(lineaDe(lineasDe(em,p),codigo).getAbono()));return null;});cuadrada(r.partida());
+        }
+    }
+    @Test void cuentaDePagoInexistenteRechazaSinCambios() {
+        var antes=estado();assertThrows(ReglaNegocioException.class,()->transaccion(Map.of("cuenta.proveedores","9999"),c->c.obtener(CompraService.class).registrar(compra(loteA,almacenA,"1","1",FormaPago.Credito))));assertEquals(antes,estado());
+        assertNotNull(transaccion(Map.of("cuenta.proveedores","9999"),c->c.obtener(CompraService.class).registrar(compra(loteA,almacenA,"1","1",FormaPago.Contado))));
+    }
+    @Test void falloDurantePartidaRevierteCompraYStock() {
+        var antes=estado();assertThrows(IllegalStateException.class,()->transaccion(c->{fallarPartida(c);return c.obtener(CompraService.class).registrar(compra(loteA,almacenA,"5","2",FormaPago.Credito));}));assertEquals(antes,estado());
+    }
+    private static void fallarPartida(Cableado c) {
+        c.reemplazar(PartidaDetalleDAO.class,new PartidaDetalleDAO(){@Override public PartidaDetalle crear(PartidaDetalle d){throw new IllegalStateException("Fallo simulado escribiendo partida");}});
+    }
+    @Test void ventaUsaMargenYPromedioDeEntradasEnEseAlmacen() {
+        comprar(loteA,almacenA,"10","5");comprar(loteA,almacenA,"10","7");
+        var r=transaccion(c->c.obtener(VentaService.class).registrar(venta("4",FormaPago.Contado)));
+        assertEquals(bd("31.20"),r.subtotal());assertEquals(bd("4.06"),r.iva());assertEquals(bd("35.26"),r.total());assertEquals(bd("24.00"),r.costoVentas());
+        leer(em->{assertEquals(0,bd("16").compareTo(Bd.stock(em,loteA,almacenA)));return null;});cuadrada(r.partida());
+    }
+    @Test void fifoConsumePrimeraEntradaLuegoSegundoLote() {
+        // Fechas distintas: si coinciden, el contrato desempata por id de lote, no por orden de persist().
+        transaccion(c->c.obtener(CompraService.class).registrar(new CompraCmd(proveedorId,empleadoId,LocalDate.now().minusDays(1),null,null,FormaPago.Credito,null,null,null,List.of(new LineaCompraCmd(loteA,null,almacenA,bd("3"),bd("5"))))));
+        comprar(loteB,almacenA,"4","10");
+        var r=transaccion(c->c.obtener(VentaService.class).registrar(venta("5",FormaPago.Credito)));
+        assertEquals(2,r.detalles().size());assertEquals(bd("35.00"),r.costoVentas());
+        leer(em->{assertEquals(0,BigDecimal.ZERO.compareTo(Bd.stock(em,loteA,almacenA)));assertEquals(0,bd("2").compareTo(Bd.stock(em,loteB,almacenA)));assertEquals(TipoPartida.Ingreso,em.find(Partida.class,r.partida().getId()).getTipo());return null;});cuadrada(r.partida());
+    }
+    @Test void ventaSinStockSuficienteAcumuladoNoDejaCambios() {
+        comprar(loteA,almacenA,"10","5");var antes=estado();
+        assertThrows(ReglaNegocioException.class,()->transaccion(c->c.obtener(VentaService.class).registrar(new VentaCmd(clienteId,empleadoId,almacenA,null,null,null,FormaPago.Contado,null,null,List.of(new LineaVentaCmd(productoId,bd("6")),new LineaVentaCmd(productoId,bd("6")))))));assertEquals(antes,estado());
+    }
+    @Test void falloDurantePartidaRevierteVentaYStock() {
+        comprar(loteA,almacenA,"10","5");var antes=estado();
+        assertThrows(IllegalStateException.class,()->transaccion(c->{fallarPartida(c);return c.obtener(VentaService.class).registrar(venta("4",FormaPago.Contado));}));assertEquals(antes,estado());
+    }
+    @Test void ventaConCuentaFaltanteSeRechazaSinCambios() {
+        comprar(loteA,almacenA,"10","5");var antes=estado();
+        assertThrows(ReglaNegocioException.class,()->transaccion(Map.of("cuenta.ventas","9999"),c->c.obtener(VentaService.class).registrar(venta("1",FormaPago.Contado))));assertEquals(antes,estado());
+    }
+    @Test void trasladoSinGastosMueveStockSinPartida() {
+        comprar(loteA,almacenA,"10","5");long antes=leer(em->Bd.contar(em,Partida.class));
+        var m=transaccion(c->c.obtener(TrasladoService.class).registrar(new TrasladoCmd(almacenA,almacenB,null,"Traslado",java.math.BigDecimal.ZERO,com.sistemacontable.entity.enums.FormaPago.Contado,null,List.of(new LineaTrasladoCmd(loteA,bd("4"))))));
+        leer(em->{assertEquals(0,bd("6").compareTo(Bd.stock(em,loteA,almacenA)));assertEquals(0,bd("4").compareTo(Bd.stock(em,loteA,almacenB)));assertEquals(antes,Bd.contar(em,Partida.class));assertEquals(TipoMovimiento.Traslado,em.find(Kardex.class,m.movimiento().kardex().getId()).getTipoMovimiento());return null;});
+    }
+    @Test void trasladoInvalidoNoDejaCambios() {
+        comprar(loteA,almacenA,"3","5");var antes=estado();
+        assertThrows(ReglaNegocioException.class,()->transaccion(c->c.obtener(TrasladoService.class).registrar(new TrasladoCmd(almacenA,almacenB,null,null,java.math.BigDecimal.ZERO,com.sistemacontable.entity.enums.FormaPago.Contado,null,List.of(new LineaTrasladoCmd(loteA,bd("4")))))));
+        assertThrows(ReglaNegocioException.class,()->transaccion(c->c.obtener(TrasladoService.class).registrar(new TrasladoCmd(almacenA,almacenA,null,null,java.math.BigDecimal.ZERO,com.sistemacontable.entity.enums.FormaPago.Contado,null,List.of(new LineaTrasladoCmd(loteA,bd("1")))))));assertEquals(antes,estado());
+    }
+    @Test void ajustesGeneranPartidasConKardexYContrapartidaSegunSigno() {
+        comprar(loteA,almacenA,"10","5");
+        var e=transaccion(c->c.obtener(AjusteService.class).registrar(new AjusteCmd(almacenA,loteA,bd("2"),"Sobrante")));
+        var s=transaccion(c->c.obtener(AjusteService.class).registrar(new AjusteCmd(almacenA,loteA,bd("-5"),"Merma")));
+        leer(em->{assertEquals(0,bd("7").compareTo(Bd.stock(em,loteA,almacenA)));assertEquals(e.movimiento().kardex().getId(),em.find(Partida.class,e.partida().getId()).getIdKardex());
+            assertEquals(0,bd("10").compareTo(lineaDe(lineasDe(em,em.find(Partida.class,e.partida().getId())),5203).getAbono()));
+            assertEquals(0,bd("25").compareTo(lineaDe(lineasDe(em,em.find(Partida.class,s.partida().getId())),4109).getCargo()));return null;});cuadrada(e.partida());cuadrada(s.partida());
+    }
+    @Test void ajusteDeSalidaMayorAlStockNoCambiaDatos() {
+        comprar(loteA,almacenA,"3","5");var antes=estado();assertThrows(ReglaNegocioException.class,()->transaccion(c->c.obtener(AjusteService.class).registrar(new AjusteCmd(almacenA,loteA,bd("-4"),"Merma"))));assertEquals(antes,estado());
+    }
+    @Test void trasladoConGastosDaCostoDistintoPorAlmacenYAlimentaInventarioPreciosYLibros() {
+        comprar(loteA,almacenA,"10","5");
+        var traslado=transaccion(c->c.obtener(TrasladoService.class).registrar(new TrasladoCmd(almacenA,almacenB,LocalDate.now(),"Transporte",bd("40"),FormaPago.Cheque,null,List.of(new LineaTrasladoCmd(loteA,bd("4"))))));
+        assertEquals(bd("60.00"),traslado.costoTotal());cuadrada(traslado.partida());
+        transaccion(c->{
+            var inventario=c.obtener(InventarioService.class);
+            var origen=inventario.buscar(productoId,almacenA);var destino=inventario.buscar(productoId,almacenB);
+            assertEquals(0,bd("6").compareTo(origen.existenciaTotal()));assertEquals(0,bd("5").compareTo(origen.costoPromedio()));
+            assertEquals(0,bd("4").compareTo(destino.existenciaTotal()));assertEquals(0,bd("15").compareTo(destino.costoPromedio()));
+            assertEquals(2,destino.porAlmacen().size());
+            assertEquals(0,bd("19.50").compareTo(inventario.precios(almacenB).getFirst().precioVenta()));
+            assertEquals(1,inventario.listar("general",null,almacenB,"con",0,50).size());
+            assertEquals(1,inventario.contar(null,null,almacenB,"con"));
+            var libros=c.obtener(LibroService.class);
+            var libro=libros.compras(LocalDate.now(),LocalDate.now());assertEquals(1,libro.filas().size());assertEquals(0,bd("56.50").compareTo(libro.totales().total()));
+            assertTrue(libros.ventas(null,null).filas().isEmpty());
+            var consulta=c.obtener(TrasladoService.class).listar(LocalDate.now(),LocalDate.now(),almacenB,0,50);
+            assertEquals(1,consulta.size());assertNotNull(consulta.getFirst().partida());assertEquals(2,consulta.getFirst().partidaLineas().size());
             return null;
         });
+        var antes=estado();
+        assertThrows(ReglaNegocioException.class,()->transaccion(c->c.obtener(TrasladoService.class).registrar(new TrasladoCmd(almacenA,almacenB,LocalDate.now(),null,bd("1"),FormaPago.Credito,null,List.of(new LineaTrasladoCmd(loteA,bd("1")))))));
+        assertEquals(antes,estado());
     }
 
-    @Test
-    void dosLineasDelMismoLoteYAlmacenAcumulanEnUnaSolaFilaDeExistencias() {
-        transaccion(c -> c.obtener(CompraService.class).registrar(new CompraCmd(proveedorId, empleadoId, null, null,
-                bd("0"),
-                List.of(new LineaCompraCmd(loteA, almacenA, bd("3"), bd("2")),
-                        new LineaCompraCmd(loteA, almacenA, bd("4"), bd("2"))))));
-
-        leer(em -> {
-            assertEquals(0, bd("7").compareTo(Bd.stock(em, loteA, almacenA)));
-            assertEquals(1, Bd.contar(em, Existencias.class));
-            return null;
-        });
-    }
-
-    @Test
-    void unaCompraEnUnAlmacenDeshabilitadoNoDejaNada() {
-        List<Object> antes = estado();
-
-        assertThrows(ReglaNegocioException.class, () -> transaccion(c -> c.obtener(CompraService.class).registrar(
-                new CompraCmd(proveedorId, empleadoId, null, null,
-                        bd("0"),
-                        List.of(new LineaCompraCmd(loteA, almacenA, bd("1"), bd("1")),
-                                new LineaCompraCmd(loteB, almacenCerrado, bd("1"), bd("1")))))));
-
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void unaCuentaConfiguradaInexistenteImpideLaCompraSinDejarNada() {
-        List<Object> antes = estado();
-
-        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
-                () -> transaccion(Map.of("cuenta.proveedores", "9999"), c -> c.obtener(CompraService.class)
-                        .registrar(new CompraCmd(proveedorId, empleadoId, null, null,
-                                bd("0"),
-                                List.of(new LineaCompraCmd(loteA, almacenA, bd("1"), bd("1")))))));
-
-        assertTrue(ex.getMessage().contains("cuenta.proveedores"), ex.getMessage());
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void unFalloAMitadDeLaEscrituraDeUnaCompraRevierteTodo() {
-        List<Object> antes = estado();
-
-        assertThrows(IllegalStateException.class, () -> transaccion(c -> {
-            c.reemplazar(PartidaDetalleDAO.class, new PartidaDetalleDAO() {
-                @Override
-                public PartidaDetalle crear(PartidaDetalle entidad) {
-                    throw new IllegalStateException("fallo simulado al escribir la partida");
-                }
-            });
-            return c.obtener(CompraService.class).registrar(new CompraCmd(proveedorId, empleadoId, null, null,
-                    bd("0"),
-                    List.of(new LineaCompraCmd(loteA, almacenA, bd("5"), bd("2")))));
-        }));
-
-        assertEquals(antes, estado());
-    }
-
-    // ---------------------------------------------------------------------- compra: contado / credito
-
-    private ResultadoCompra comprarConPorcentaje(Map<String, String> config, String porcentajeContado) {
-        return transaccion(config, c -> c.obtener(CompraService.class).registrar(new CompraCmd(proveedorId, empleadoId,
-                LocalDate.of(2026, 5, 4), "Reposicion", bd(porcentajeContado), List.of(
-                        new LineaCompraCmd(loteA, almacenA, bd("10"), bd("5.00")),
-                        new LineaCompraCmd(loteB, almacenA, bd("4"), bd("25.50"))))));
-    }
-
-    @Test
-    void laCompraMixta40_60AcreditaCajaYProveedoresYLaPartidaCuadra() {
-        ResultadoCompra r = comprarConPorcentaje(Map.of(), "40");
-
-        leer(em -> {
-            List<PartidaDetalle> lineas = lineasDe(em, em.find(Partida.class, r.partida().getId()));
-            assertEquals(4, lineas.size());
-            assertEquals(0, bd("152.00").compareTo(lineaDe(lineas, 1104).getCargo()));
-            assertEquals(0, bd("19.76").compareTo(lineaDe(lineas, 1105).getCargo()));
-            assertEquals(0, bd("68.70").compareTo(lineaDe(lineas, 1101).getAbono()));
-            assertEquals(0, bd("103.06").compareTo(lineaDe(lineas, 2101).getAbono()));
-            assertEquals(0, suma(lineas, true).compareTo(suma(lineas, false)));
-            assertEquals(0, bd("171.76").compareTo(suma(lineas, true)));
-            return null;
-        });
-    }
-
-    @Test
-    void laCompraConPorcentajeQueNoDivideExactoCuadraAlCentavoYNoGeneraLineasEnCero() {
-        ResultadoCompra r = comprarConPorcentaje(Map.of(), "33.33");
-
-        leer(em -> {
-            List<PartidaDetalle> lineas = lineasDe(em, em.find(Partida.class, r.partida().getId()));
-            assertEquals(0, bd("57.25").compareTo(lineaDe(lineas, 1101).getAbono()));
-            assertEquals(0, bd("114.51").compareTo(lineaDe(lineas, 2101).getAbono()));
-            assertEquals(0, suma(lineas, true).compareTo(suma(lineas, false)));
-            assertTrue(lineas.stream().allMatch(l -> l.getCargo().signum() > 0 || l.getAbono().signum() > 0));
-            return null;
-        });
-    }
-
-    @Test
-    void unaCompraAlContadoNoNecesitaLaCuentaDeProveedoresPeroUnaMixtaSi() {
-        // 100 % contado: proveedores no se usa, aunque su codigo configurado no exista
-        ResultadoCompra r = comprarConPorcentaje(Map.of("cuenta.proveedores", "9999"), "100");
-        leer(em -> {
-            List<PartidaDetalle> lineas = lineasDe(em, em.find(Partida.class, r.partida().getId()));
-            assertEquals(3, lineas.size());
-            assertEquals(0, bd("171.76").compareTo(lineaDe(lineas, 1101).getAbono()));
-            return null;
-        });
-
-        // mixta: necesita ambas y, al faltar una, no queda nada del intento
-        List<Object> antes = estado();
-        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
-                () -> comprarConPorcentaje(Map.of("cuenta.proveedores", "9999"), "40"));
-        assertTrue(ex.getMessage().contains("cuenta.proveedores"), ex.getMessage());
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void unaCompraMixtaSinLaCuentaDeCajaNoDejaNada() {
-        List<Object> antes = estado();
-
-        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
-                () -> comprarConPorcentaje(Map.of("cuenta.caja", "9999"), "40"));
-
-        assertTrue(ex.getMessage().contains("cuenta.caja"), ex.getMessage());
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void unPorcentajeFueraDeRangoEnLaCompraNoDejaNada() {
-        List<Object> antes = estado();
-
-        assertThrows(ReglaNegocioException.class, () -> comprarConPorcentaje(Map.of(), "100.01"));
-        assertThrows(ReglaNegocioException.class, () -> comprarConPorcentaje(Map.of(), "-1"));
-
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void unFalloAMitadDeLaEscrituraDeUnaCompraMixtaRevierteTodo() {
-        List<Object> antes = estado();
-
-        assertThrows(IllegalStateException.class, () -> transaccion(c -> {
-            c.reemplazar(PartidaDetalleDAO.class, new PartidaDetalleDAO() {
-                @Override
-                public PartidaDetalle crear(PartidaDetalle entidad) {
-                    throw new IllegalStateException("fallo simulado al escribir la partida");
-                }
-            });
-            return c.obtener(CompraService.class).registrar(new CompraCmd(proveedorId, empleadoId, null, null,
-                    bd("40"), List.of(new LineaCompraCmd(loteA, almacenA, bd("5"), bd("2")))));
-        }));
-
-        assertEquals(antes, estado());
-    }
-
-    // -------------------------------------------------------------------------------------- venta
-
-    @Test
-    void laVentaDescuentaStockAlCostoPromedioPonderadoYContabilizaIngresoYCosto() {
-        comprar(loteA, almacenA, "10", "5.00");
-        comprar(loteA, almacenA, "10", "7.00"); // promedio ponderado = (50 + 70) / 20 = 6.0000
-
-        ResultadoVenta r = transaccion(c -> c.obtener(VentaService.class).registrar(new VentaCmd(clienteId, empleadoId,
-                LocalDate.of(2026, 5, 5), "Mostrador", bd("100"), List.of(new LineaVentaCmd(loteA, almacenA, bd("4"), bd("20.00"))))));
-
-        assertEquals(bd("80.00"), r.subtotal());
-        assertEquals(bd("10.40"), r.iva());
-        assertEquals(bd("90.40"), r.total());
-        assertEquals(bd("24.00"), r.costoVentas());
-        leer(em -> {
-            assertEquals(0, bd("16").compareTo(Bd.stock(em, loteA, almacenA)));
-            Kardex salida = em.createQuery("SELECT k FROM Kardex k WHERE k.tipoMovimiento = :t", Kardex.class)
-                    .setParameter("t", TipoMovimiento.Salida).getSingleResult();
-            assertEquals(almacenA, salida.getOrigen().getId());
-            assertNull(salida.getDestino());
-            assertEquals(r.venta().getId(), salida.getVenta().getId());
-            KardexDetalle d = em.createQuery("SELECT d FROM KardexDetalle d WHERE d.kardex = :k", KardexDetalle.class)
-                    .setParameter("k", salida).getSingleResult();
-            assertEquals(0, bd("6.0000").compareTo(d.getPrecioCosto()));
-            assertEquals(0, bd("4").compareTo(d.getCantidad()));
-
-            Partida p = em.find(Partida.class, r.partida().getId());
-            assertEquals(TipoPartida.Ingreso, p.getTipo());
-            List<PartidaDetalle> lineas = lineasDe(em, p);
-            assertEquals(5, lineas.size());
-            assertEquals(0, bd("90.40").compareTo(lineaDe(lineas, 1101).getCargo())); // contado: Caja
-            assertEquals(0, bd("80.00").compareTo(lineaDe(lineas, 4101).getAbono()));
-            assertEquals(0, bd("10.40").compareTo(lineaDe(lineas, 2102).getAbono()));
-            assertEquals(0, bd("24.00").compareTo(lineaDe(lineas, 5101).getCargo()));
-            assertEquals(0, bd("24.00").compareTo(lineaDe(lineas, 1104).getAbono()));
-            assertEquals(0, suma(lineas, true).compareTo(suma(lineas, false)));
-            assertEquals(0, bd("114.40").compareTo(suma(lineas, true)));
-            return null;
-        });
-    }
-
-    @Test
-    void conCeroPorCientoDeContadoElCobroVaALaCuentaDeClientes() {
-        comprar(loteA, almacenA, "10", "5.00");
-
-        ResultadoVenta r = transaccion(c -> c.obtener(VentaService.class)
-                .registrar(new VentaCmd(clienteId, empleadoId, null, null,
-                        bd("0"),
-                        List.of(new LineaVentaCmd(loteA, almacenA, bd("1"), bd("10.00"))))));
-
-        leer(em -> {
-            List<PartidaDetalle> lineas = lineasDe(em, em.find(Partida.class, r.partida().getId()));
-            assertEquals(0, bd("11.30").compareTo(lineaDe(lineas, 1103).getCargo()));
-            assertTrue(lineas.stream().noneMatch(l -> l.getCuenta().getCodigo() == 1101));
-            return null;
-        });
-    }
-
-    private ResultadoVenta venderConPorcentaje(Map<String, String> config, String porcentajeContado, String cantidad,
-            String precio) {
-        return transaccion(config, c -> c.obtener(VentaService.class).registrar(new VentaCmd(clienteId, empleadoId,
-                LocalDate.of(2026, 5, 5), null, bd(porcentajeContado),
-                List.of(new LineaVentaCmd(loteA, almacenA, bd(cantidad), bd(precio))))));
-    }
-
-    @Test
-    void laVentaMixta40_60DebitaCajaYClientesYLaPartidaCuadra() {
-        comprar(loteA, almacenA, "10", "5.00");
-
-        // 4 x 20.00 = 80.00 ; IVA 10.40 ; total 90.40 ; costo 4 x 5.00 = 20.00
-        ResultadoVenta r = venderConPorcentaje(Map.of(), "40", "4", "20.00");
-
-        assertEquals(bd("90.40"), r.total());
-        leer(em -> {
-            List<PartidaDetalle> lineas = lineasDe(em, em.find(Partida.class, r.partida().getId()));
-            assertEquals(6, lineas.size());
-            assertEquals(0, bd("36.16").compareTo(lineaDe(lineas, 1101).getCargo()));
-            assertEquals(0, bd("54.24").compareTo(lineaDe(lineas, 1103).getCargo()));
-            assertEquals(0, bd("80.00").compareTo(lineaDe(lineas, 4101).getAbono()));
-            assertEquals(0, bd("10.40").compareTo(lineaDe(lineas, 2102).getAbono()));
-            assertEquals(0, bd("20.00").compareTo(lineaDe(lineas, 5101).getCargo()));
-            assertEquals(0, bd("20.00").compareTo(lineaDe(lineas, 1104).getAbono()));
-            assertEquals(0, suma(lineas, true).compareTo(suma(lineas, false)));
-            return null;
-        });
-    }
-
-    @Test
-    void laVentaConPorcentajeQueNoDivideExactoCuadraAlCentavo() {
-        comprar(loteA, almacenA, "10", "5.00");
-
-        // 3 x 33.35 = 100.05 ; IVA 13.01 ; total 113.06 ; contado 33.33 % = 37.68 ; credito 75.38
-        ResultadoVenta r = venderConPorcentaje(Map.of(), "33.33", "3", "33.35");
-
-        assertEquals(bd("113.06"), r.total());
-        leer(em -> {
-            List<PartidaDetalle> lineas = lineasDe(em, em.find(Partida.class, r.partida().getId()));
-            assertEquals(0, bd("37.68").compareTo(lineaDe(lineas, 1101).getCargo()));
-            assertEquals(0, bd("75.38").compareTo(lineaDe(lineas, 1103).getCargo()));
-            assertEquals(0, suma(lineas, true).compareTo(suma(lineas, false)));
-            assertTrue(lineas.stream().allMatch(l -> l.getCargo().signum() > 0 || l.getAbono().signum() > 0));
-            return null;
-        });
-    }
-
-    @Test
-    void unaVentaAlContadoNoNecesitaLaCuentaDeClientesPeroUnaMixtaSi() {
-        comprar(loteA, almacenA, "10", "5.00");
-
-        // 100 % contado: clientes no se usa, aunque su codigo configurado no exista
-        ResultadoVenta r = venderConPorcentaje(Map.of("cuenta.clientes", "9999"), "100", "1", "10.00");
-        leer(em -> {
-            List<PartidaDetalle> lineas = lineasDe(em, em.find(Partida.class, r.partida().getId()));
-            assertEquals(5, lineas.size());
-            assertEquals(0, bd("11.30").compareTo(lineaDe(lineas, 1101).getCargo()));
-            return null;
-        });
-
-        // mixta: necesita ambas y, al faltar una, no queda nada del intento
-        List<Object> antes = estado();
-        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
-                () -> venderConPorcentaje(Map.of("cuenta.clientes", "9999"), "40", "1", "10.00"));
-        assertTrue(ex.getMessage().contains("cuenta.clientes"), ex.getMessage());
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void unPorcentajeFueraDeRangoEnLaVentaNoDejaNada() {
-        comprar(loteA, almacenA, "10", "5.00");
-        List<Object> antes = estado();
-
-        assertThrows(ReglaNegocioException.class, () -> venderConPorcentaje(Map.of(), "100.01", "1", "10.00"));
-        assertThrows(ReglaNegocioException.class, () -> venderConPorcentaje(Map.of(), "-1", "1", "10.00"));
-
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void unFalloAMitadDeLaEscrituraDeUnaVentaMixtaRevierteStockKardexYPartida() {
-        comprar(loteA, almacenA, "10", "5.00");
-        List<Object> antes = estado();
-
-        assertThrows(IllegalStateException.class, () -> transaccion(c -> {
-            c.reemplazar(PartidaDetalleDAO.class, new PartidaDetalleDAO() {
-                @Override
-                public PartidaDetalle crear(PartidaDetalle entidad) {
-                    throw new IllegalStateException("fallo simulado al escribir la partida");
-                }
-            });
-            return c.obtener(VentaService.class).registrar(new VentaCmd(clienteId, empleadoId, null, null, bd("40"),
-                    List.of(new LineaVentaCmd(loteA, almacenA, bd("4"), bd("10")))));
-        }));
-
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void conStockInsuficienteEnLaSegundaLineaNoQuedaNadaDeLaPrimera() {
-        comprar(loteA, almacenA, "10", "5.00");
-        comprar(loteB, almacenA, "1", "5.00");
-        List<Object> antes = estado();
-
-        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
-                () -> transaccion(c -> c.obtener(VentaService.class).registrar(new VentaCmd(clienteId, empleadoId, null,
-                        null, bd("100"), List.of(new LineaVentaCmd(loteA, almacenA, bd("3"), bd("10")),
-                                new LineaVentaCmd(loteB, almacenA, bd("5"), bd("10")))))));
-
-        assertTrue(ex.getMessage().contains("insuficiente"), ex.getMessage());
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void lineasQueSumadasSuperanElStockSeRechazanAunqueCadaUnaAlcance() {
-        comprar(loteA, almacenA, "10", "5.00");
-        List<Object> antes = estado();
-
-        assertThrows(ReglaNegocioException.class,
-                () -> transaccion(c -> c.obtener(VentaService.class).registrar(new VentaCmd(clienteId, empleadoId, null,
-                        null, bd("100"), List.of(new LineaVentaCmd(loteA, almacenA, bd("6"), bd("10")),
-                                new LineaVentaCmd(loteA, almacenA, bd("6"), bd("10")))))));
-
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void unaCuentaConfiguradaInexistenteImpideLaVentaSinDejarNada() {
-        comprar(loteA, almacenA, "10", "5.00");
-        List<Object> antes = estado();
-
-        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
-                () -> transaccion(Map.of("cuenta.ventas", "9999"), c -> c.obtener(VentaService.class).registrar(
-                        new VentaCmd(clienteId, empleadoId, null, null,
-                                bd("100"),
-                                List.of(new LineaVentaCmd(loteA, almacenA, bd("1"), bd("10")))))));
-
-        assertTrue(ex.getMessage().contains("cuenta.ventas"), ex.getMessage());
-        assertEquals(antes, estado());
-    }
-
-    @Test
-    void unFalloAMitadDeLaEscrituraDeUnaVentaRevierteStockKardexYPartida() {
-        comprar(loteA, almacenA, "10", "5.00");
-        List<Object> antes = estado();
-
-        assertThrows(IllegalStateException.class, () -> transaccion(c -> {
-            c.reemplazar(PartidaDetalleDAO.class, new PartidaDetalleDAO() {
-                @Override
-                public PartidaDetalle crear(PartidaDetalle entidad) {
-                    throw new IllegalStateException("fallo simulado al escribir la partida");
-                }
-            });
-            return c.obtener(VentaService.class).registrar(new VentaCmd(clienteId, empleadoId, null, null,
-                    bd("100"),
-                    List.of(new LineaVentaCmd(loteA, almacenA, bd("4"), bd("10")))));
-        }));
-
-        assertEquals(antes, estado());
-        leer(em -> {
-            assertEquals(0, bd("10").compareTo(Bd.stock(em, loteA, almacenA)));
-            return null;
-        });
-    }
-
-    @Test
-    void unaVentaDeUnLoteSinComprasSeRechazaPorFaltaDeCosto() {
-        // stock obtenido por un ajuste de entrada: no hay compra_detalle, por tanto no hay costo conocido
-        transaccion(c -> c.obtener(AjusteService.class).registrar(new AjusteCmd(almacenA, loteB, bd("5"), "Inicial")));
-        List<Object> antes = estado();
-
-        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
-                () -> transaccion(c -> c.obtener(VentaService.class).registrar(new VentaCmd(clienteId, empleadoId, null,
-                        null, bd("100"), List.of(new LineaVentaCmd(loteB, almacenA, bd("1"), bd("10")))))));
-
-        assertTrue(ex.getMessage().contains("costo"), ex.getMessage());
-        assertEquals(antes, estado());
-    }
-
-    // ------------------------------------------------------------------------------------ traslado
-
-    @Test
-    void elTrasladoMueveStockEntreAlmacenesConUnKardexTrasladoYSinPartida() {
-        comprar(loteA, almacenA, "10", "5.00");
-        long partidasAntes = leer(em -> Bd.contar(em, Partida.class));
-
-        MovimientoKardex m = transaccion(c -> c.obtener(TrasladoService.class).registrar(new TrasladoCmd(almacenA,
-                almacenB, "Reabastecer sucursal", List.of(new LineaTrasladoCmd(loteA, bd("4"))))));
-
-        leer(em -> {
-            assertEquals(0, bd("6").compareTo(Bd.stock(em, loteA, almacenA)));
-            assertEquals(0, bd("4").compareTo(Bd.stock(em, loteA, almacenB)));
-            Kardex k = em.find(Kardex.class, m.kardex().getId());
-            assertEquals(TipoMovimiento.Traslado, k.getTipoMovimiento());
-            assertEquals(almacenA, k.getOrigen().getId());
-            assertEquals(almacenB, k.getDestino().getId());
-            assertNull(k.getCompra());
-            assertNull(k.getVenta());
-            assertEquals(partidasAntes, Bd.contar(em, Partida.class));
-            return null;
-        });
-    }
-
-    @Test
-    void unTrasladoConStockInsuficienteOConAlmacenesIgualesNoDejaNada() {
-        comprar(loteA, almacenA, "3", "5.00");
-        List<Object> antes = estado();
-
-        assertThrows(ReglaNegocioException.class, () -> transaccion(c -> c.obtener(TrasladoService.class).registrar(
-                new TrasladoCmd(almacenA, almacenB, null, List.of(new LineaTrasladoCmd(loteA, bd("4")))))));
-        assertThrows(ReglaNegocioException.class, () -> transaccion(c -> c.obtener(TrasladoService.class).registrar(
-                new TrasladoCmd(almacenA, almacenA, null, List.of(new LineaTrasladoCmd(loteA, bd("1")))))));
-
-        assertEquals(antes, estado());
-    }
-
-    // -------------------------------------------------------------------------------------- ajuste
-
-    @Test
-    void elAjusteDeEntradaYSalidaUsaDestinoYOrigenConCantidadPositiva() {
-        comprar(loteA, almacenA, "10", "5.00");
-
-        MovimientoKardex entrada = transaccion(c -> c.obtener(AjusteService.class)
-                .registrar(new AjusteCmd(almacenA, loteA, bd("2"), "Sobrante")).movimiento());
-        MovimientoKardex salida = transaccion(c -> c.obtener(AjusteService.class)
-                .registrar(new AjusteCmd(almacenA, loteA, bd("-5"), "Merma")).movimiento());
-
-        leer(em -> {
-            assertEquals(0, bd("7").compareTo(Bd.stock(em, loteA, almacenA)));
-            Kardex e = em.find(Kardex.class, entrada.kardex().getId());
-            assertEquals(TipoMovimiento.Ajuste, e.getTipoMovimiento());
-            assertNull(e.getOrigen());
-            assertEquals(almacenA, e.getDestino().getId());
-            assertEquals("Sobrante", e.getDescripcion());
-            Kardex s = em.find(Kardex.class, salida.kardex().getId());
-            assertEquals(almacenA, s.getOrigen().getId());
-            assertNull(s.getDestino());
-            KardexDetalle d = em.createQuery("SELECT d FROM KardexDetalle d WHERE d.kardex = :k", KardexDetalle.class)
-                    .setParameter("k", s).getSingleResult();
-            assertEquals(0, bd("5").compareTo(d.getCantidad()));
-            assertTrue(d.getCantidad().signum() > 0);
-            return null;
-        });
-    }
-
-    @Test
-    void conPartidaDeAjusteActivaSeContabilizaContraLaCuentaDeAjuste() {
-        comprar(loteA, almacenA, "10", "5.00");
-
-        ResultadoAjuste r = transaccion(Map.of(ConfigContable.AJUSTE_GENERA_PARTIDA, "true"), c -> c.obtener(
-                AjusteService.class).registrar(new AjusteCmd(almacenA, loteA, bd("-2"), "Merma")));
-
-        assertNotNull(r.partida());
-        leer(em -> {
-            Partida p = em.find(Partida.class, r.partida().getId());
-            assertEquals(TipoPartida.Ajuste, p.getTipo());
-            List<PartidaDetalle> lineas = lineasDe(em, p);
-            assertEquals(2, lineas.size());
-            assertEquals(0, bd("10.00").compareTo(lineaDe(lineas, 5301).getCargo()));
-            assertEquals(0, bd("10.00").compareTo(lineaDe(lineas, 1104).getAbono()));
-            return null;
-        });
-    }
-
-    @Test
-    void unAjusteDeSalidaMayorQueElStockNoDejaNada() {
-        comprar(loteA, almacenA, "3", "5.00");
-        List<Object> antes = estado();
-
-        assertThrows(ReglaNegocioException.class, () -> transaccion(c -> c.obtener(AjusteService.class)
-                .registrar(new AjusteCmd(almacenA, loteA, bd("-4"), "Merma"))));
-
-        assertEquals(antes, estado());
-    }
 }

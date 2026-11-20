@@ -20,6 +20,7 @@ import com.sistemacontable.control.UnidadMedidaDAO;
 import com.sistemacontable.control.VentaDAO;
 import com.sistemacontable.control.exception.NoEncontradoException;
 import com.sistemacontable.control.exception.ReglaNegocioException;
+import com.sistemacontable.control.exception.ConflictoException;
 import com.sistemacontable.control.service.cmd.ClienteCmd;
 import com.sistemacontable.control.service.cmd.ProveedorCmd;
 import com.sistemacontable.control.service.cmd.TerceroCmd;
@@ -124,7 +125,7 @@ class ContactosServiceTest {
 
     @Test
     void clienteConNitRepetidoOCamposVaciosSeRechaza() {
-        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
+        ConflictoException ex = assertThrows(ConflictoException.class,
                 () -> clientes.crear(new ClienteCmd("Otra", null, "0614-1")));
         assertTrue(ex.getMessage().contains("NIT") && ex.getMessage().contains("0614-1"), ex.getMessage());
         assertThrows(ReglaNegocioException.class, () -> clientes.crear(new ClienteCmd(" ", null, "1")));
@@ -141,7 +142,7 @@ class ContactosServiceTest {
         Cliente otro = new Cliente();
         otro.setId(9L);
         when(clienteDAO.findByNit("0614-7")).thenReturn(Optional.of(otro));
-        assertThrows(ReglaNegocioException.class, () -> clientes.modificar(1L, new ClienteCmd("x", null, "0614-7")));
+        assertThrows(ConflictoException.class, () -> clientes.modificar(1L, new ClienteCmd("x", null, "0614-7")));
     }
 
     @Test
@@ -177,7 +178,7 @@ class ContactosServiceTest {
 
         verify(proveedorDAO).crear(p);
         assertEquals("desc", p.getDescripcion());
-        assertThrows(ReglaNegocioException.class, () -> proveedores.crear(new ProveedorCmd("Otro", null, "0614-2")));
+        assertThrows(ConflictoException.class, () -> proveedores.crear(new ProveedorCmd("Otro", null, "0614-2")));
         assertThrows(ReglaNegocioException.class, () -> proveedores.crear(new ProveedorCmd("", null, "1")));
         assertThrows(ReglaNegocioException.class, () -> proveedores.crear(new ProveedorCmd("x", null, null)));
     }

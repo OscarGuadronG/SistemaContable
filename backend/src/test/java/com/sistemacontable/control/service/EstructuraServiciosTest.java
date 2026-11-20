@@ -39,7 +39,8 @@ class EstructuraServiciosTest {
                 KardexService.class, CompraService.class, VentaService.class, TrasladoService.class,
                 AjusteService.class, PlanillaService.class, EmpleadoService.class, DepartamentoService.class,
                 ClienteService.class, ProveedorService.class, ProductoService.class, LoteService.class,
-                AlmacenService.class, TipoProductoService.class, TerceroService.class, UnidadMedidaService.class);
+                AlmacenService.class, TipoProductoService.class, TerceroService.class, UnidadMedidaService.class,
+                CreditoService.class,DevolucionService.class,PeriodoService.class,ParametroService.class,InventarioService.class,LibroService.class,AutenticacionService.class);
     }
 
     @ParameterizedTest

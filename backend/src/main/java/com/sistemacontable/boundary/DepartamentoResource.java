@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.dto.DepartamentoRequest;
 import com.sistemacontable.boundary.mapper.CatalogoMapper;
 import com.sistemacontable.control.service.DepartamentoService;
@@ -28,6 +30,7 @@ import jakarta.ws.rs.core.UriInfo;
  * <p>Solo delega en {@link DepartamentoService}: sin reglas de negocio ni acceso a datos. La transaccion abarca la
  * peticion para que el mapeo a DTO lea las relaciones perezosas dentro de ella.</p>
  */
+@Roles({RolApp.Contabilidad, RolApp.RRHH})
 @Path("/departamentos")
 @RequestScoped
 @Transactional
@@ -52,18 +55,21 @@ public class DepartamentoResource {
         return Respuestas.ok(CatalogoMapper.departamento(servicio.buscarPorId(id)));
     }
 
+    @Roles({RolApp.RRHH})
     @POST
     public Response crear(@Valid DepartamentoRequest cuerpo, @Context UriInfo uriInfo) {
         var creado = servicio.crear(Respuestas.requerir(cuerpo).aCmd());
         return Respuestas.creado(uriInfo, "departamentos", creado.getId(), CatalogoMapper.departamento(creado));
     }
 
+    @Roles({RolApp.RRHH})
     @PUT
     @Path("/{id}")
     public Response modificar(@PathParam("id") Long id, @Valid DepartamentoRequest cuerpo) {
         return Respuestas.ok(CatalogoMapper.departamento(servicio.modificar(id, Respuestas.requerir(cuerpo).aCmd())));
     }
 
+    @Roles({RolApp.RRHH})
     @DELETE
     @Path("/{id}")
     public Response eliminar(@PathParam("id") Long id) {

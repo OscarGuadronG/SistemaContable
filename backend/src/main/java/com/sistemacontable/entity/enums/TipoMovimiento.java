@@ -8,5 +8,6 @@ public enum TipoMovimiento {
     Entrada,
     Salida,
     Traslado,
+    Devolucion,
     Ajuste
 }

@@ -11,6 +11,7 @@
     <persistence-unit name="testPU" transaction-type="RESOURCE_LOCAL">
         <provider>org.eclipse.persistence.jpa.PersistenceProvider</provider>
         <class>com.sistemacontable.entity.EntidadBase</class>
+        <class>com.sistemacontable.entity.InstantConverter</class>
         <class>com.sistemacontable.entity.Almacen</class>
         <class>com.sistemacontable.entity.Cliente</class>
         <class>com.sistemacontable.entity.Compra</class>
@@ -33,6 +34,14 @@
         <class>com.sistemacontable.entity.UnidadMedida</class>
         <class>com.sistemacontable.entity.Venta</class>
         <class>com.sistemacontable.entity.VentaDetalle</class>
+        <class>com.sistemacontable.security.Perfil</class>
+        <class>com.sistemacontable.entity.Parametro</class>
+        <class>com.sistemacontable.entity.PagoCredito</class>
+        <class>com.sistemacontable.entity.DevolucionCompra</class>
+        <class>com.sistemacontable.entity.DevolucionCompraDetalle</class>
+        <class>com.sistemacontable.entity.DevolucionVenta</class>
+        <class>com.sistemacontable.entity.DevolucionVentaDetalle</class>
+        <class>com.sistemacontable.entity.Periodo</class>
         <exclude-unlisted-classes>true</exclude-unlisted-classes>
         <properties>
             <property name="jakarta.persistence.jdbc.driver" value="org.h2.Driver"/>

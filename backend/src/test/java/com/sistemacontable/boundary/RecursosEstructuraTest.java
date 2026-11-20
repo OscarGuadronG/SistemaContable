@@ -116,7 +116,7 @@ class RecursosEstructuraTest {
             }
             assertEquals(Response.class, m.getReturnType(), m + " debe devolver Response");
             for (Parameter p : m.getParameters()) {
-                assertFalse(p.getType().getName().startsWith("com.sistemacontable.entity."),
+                assertFalse(p.getType().isAnnotationPresent(jakarta.persistence.Entity.class),
                         m + " no debe recibir entidades JPA");
             }
         }

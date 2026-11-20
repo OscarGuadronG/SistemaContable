@@ -1,6 +1,7 @@
 package com.sistemacontable.control.service;
 
 import com.sistemacontable.entity.Cuenta;
+import com.sistemacontable.entity.enums.FormaPago;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,35 +19,37 @@ public final class Asientos {
     private Asientos() {
     }
 
-    /**
-     * Compra: Inventario e IVA credito fiscal al debe; al haber, Caja por la parte de contado y Proveedores por la
-     * parte a credito (la suma es el total).
-     */
-    public static List<LineaAsiento> compra(Cuenta inventario, Cuenta ivaCredito, Cuenta caja, Cuenta proveedores,
-            TotalesDocumento t, PagoDocumento pago) {
+    public static List<LineaAsiento> compraCompleta(Cuenta inventario, Cuenta ivaCredito, Cuenta descuentos,
+            Cuenta caja, Cuenta bancos, Cuenta proveedores, FormaPago formaPago, BigDecimal subtotal,
+            BigDecimal descuento, BigDecimal gastos, BigDecimal iva, BigDecimal total) {
         List<LineaAsiento> lineas = new ArrayList<>();
-        cargo(lineas, inventario, t.subtotal());
-        cargo(lineas, ivaCredito, t.iva());
-        abono(lineas, caja, pago.contado());
-        abono(lineas, proveedores, pago.credito());
+        cargo(lineas, inventario, subtotal.add(gastos));
+        cargo(lineas, ivaCredito, iva);
+        abono(lineas, descuentos, descuento);
+        abono(lineas, cuentaPago(formaPago, caja, bancos, proveedores), total);
         return lineas;
     }
 
-    /**
-     * Venta: al debe, Caja por la parte de contado y Clientes por la parte a credito (la suma es el total); Ventas e
-     * IVA debito fiscal al haber; y el costo de ventas al debe contra Inventario al haber por {@code costo}.
-     */
-    public static List<LineaAsiento> venta(Cuenta caja, Cuenta clientes, Cuenta ventas, Cuenta ivaDebito,
-            Cuenta costoVentas, Cuenta inventario, TotalesDocumento t, PagoDocumento pago, BigDecimal costo) {
+    public static List<LineaAsiento> ventaCompleta(Cuenta caja, Cuenta bancos, Cuenta clientes, Cuenta rebajas,
+            Cuenta ventas, Cuenta ivaDebito, Cuenta costoVentas, Cuenta inventario, FormaPago formaPago,
+            BigDecimal subtotal, BigDecimal descuento, BigDecimal iva, BigDecimal total, BigDecimal costo) {
         List<LineaAsiento> lineas = new ArrayList<>();
-        cargo(lineas, caja, pago.contado());
-        cargo(lineas, clientes, pago.credito());
-        abono(lineas, ventas, t.subtotal());
-        abono(lineas, ivaDebito, t.iva());
+        cargo(lineas, cuentaPago(formaPago, caja, bancos, clientes), total);
+        cargo(lineas, rebajas, descuento);
+        abono(lineas, ventas, subtotal);
+        abono(lineas, ivaDebito, iva);
         BigDecimal costoRedondeado = Dinero.redondear(costo);
         cargo(lineas, costoVentas, costoRedondeado);
         abono(lineas, inventario, costoRedondeado);
         return lineas;
+    }
+
+    private static Cuenta cuentaPago(FormaPago forma, Cuenta caja, Cuenta bancos, Cuenta credito) {
+        return switch (forma) {
+            case Contado -> caja;
+            case Cheque -> bancos;
+            case Credito -> credito;
+        };
     }
 
     /**

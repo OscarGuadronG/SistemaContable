@@ -2,6 +2,7 @@ package com.sistemacontable.control.service;
 
 import com.sistemacontable.control.CuentaDAO;
 import com.sistemacontable.control.exception.NoEncontradoException;
+import com.sistemacontable.control.exception.ConflictoException;
 import com.sistemacontable.control.exception.ReglaNegocioException;
 import com.sistemacontable.control.service.cmd.CuentaCmd;
 import com.sistemacontable.entity.Cuenta;
@@ -10,6 +11,7 @@ import jakarta.ejb.LocalBean;
 import jakarta.ejb.Stateless;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Objects;
 
 /**
@@ -174,6 +176,18 @@ public class CuentaService {
         return cuentaDAO.findTodas();
     }
 
+    public List<com.sistemacontable.boundary.dto.CuentaArbolDto> arbol() {
+        List<com.sistemacontable.boundary.dto.CuentaArbolDto> roots = new ArrayList<>();
+        for (Cuenta c : cuentaDAO.findTodas()) if (c.getPadre() == null) roots.add(arbol(c));
+        return List.copyOf(roots);
+    }
+
+    private com.sistemacontable.boundary.dto.CuentaArbolDto arbol(Cuenta c) {
+        List<com.sistemacontable.boundary.dto.CuentaArbolDto> hijos = cuentaDAO.findHijos(c).stream().map(this::arbol).toList();
+        int n=String.valueOf(c.getCodigo()).length(); int nivel=n==1?1:n==2?2:n==4?3:n==5?4:n;
+        return new com.sistemacontable.boundary.dto.CuentaArbolDto(c.getId(),c.getCodigo(),c.getNombre(),c.getNaturaleza(),c.getActivo(),c.getImputable(),nivel,hijos);
+    }
+
     // ------------------------------------------------------------------------------------- privados
 
     private static void requerirDatos(CuentaCmd cmd) {
@@ -186,14 +200,26 @@ public class CuentaService {
         if (cmd.nombre() == null || cmd.nombre().isBlank()) {
             throw new ReglaNegocioException("El nombre de la cuenta es obligatorio");
         }
+        if (!ReglasCuenta.codigoDeNivelValido(cmd.codigo())) {
+            throw new ReglaNegocioException("El código debe tener 1, 2, 4 o 5 dígitos según el nivel del catálogo");
+        }
     }
 
     private void validarCodigoUnico(Integer codigo, Long idPropio) {
         cuentaDAO.findByCodigo(codigo).ifPresent(existente -> {
             if (!existente.getId().equals(idPropio)) {
-                throw new ReglaNegocioException("Ya existe una cuenta con el codigo " + codigo);
+                throw new ConflictoException("Ya existe una cuenta con el codigo " + codigo);
             }
         });
+    }
+
+    /** Elimina físicamente solo una cuenta sin cuentas hijas ni movimientos contables. */
+    public void eliminar(Long id) {
+        Cuenta cuenta = buscarPorId(id);
+        if (!cuentaDAO.findHijos(cuenta).isEmpty() || cuentaDAO.tieneMovimientos(cuenta)) {
+            throw new ReglaNegocioException("No se puede eliminar la cuenta porque tiene subcuentas o movimientos");
+        }
+        cuentaDAO.eliminar(id);
     }
 
     /** El padre debe estar activo y no ser imputable (una cuenta con hijas es de agrupacion). */

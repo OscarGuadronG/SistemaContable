@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.mapper.InventarioMapper;
 import com.sistemacontable.control.service.ExistenciasService;
 import jakarta.enterprise.context.RequestScoped;
@@ -20,6 +22,7 @@ import jakarta.ws.rs.core.Response;
  *
  * <p>Solo delega en {@link ExistenciasService}: sin reglas de negocio ni acceso a datos.</p>
  */
+@Roles({RolApp.Ventas, RolApp.Bodega, RolApp.Contabilidad, RolApp.RRHH, RolApp.Ventas, RolApp.Bodega, RolApp.Contabilidad})
 @Path("/existencias")
 @RequestScoped
 @Transactional

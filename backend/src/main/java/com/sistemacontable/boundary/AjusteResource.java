@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.dto.AjusteRequest;
 import com.sistemacontable.boundary.mapper.InventarioMapper;
 import com.sistemacontable.control.service.AjusteService;
@@ -23,6 +25,7 @@ import jakarta.ws.rs.core.UriInfo;
  *
  * <p>Solo delega en {@link AjusteService}: sin reglas de negocio ni acceso a datos.</p>
  */
+@Roles({RolApp.Bodega})
 @Path("/ajustes")
 @RequestScoped
 @Transactional
@@ -33,6 +36,7 @@ public class AjusteResource {
     @Inject
     private AjusteService servicio;
 
+    @Roles({RolApp.Bodega})
     @POST
     public Response registrar(@Valid AjusteRequest cuerpo, @Context UriInfo uriInfo) {
         ResultadoAjuste resultado = servicio.registrar(Respuestas.requerir(cuerpo).aCmd());

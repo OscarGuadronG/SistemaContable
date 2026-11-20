@@ -19,6 +19,7 @@ import com.sistemacontable.control.service.cmd.VentaCmd;
 import com.sistemacontable.entity.enums.EstadoEmpleado;
 import com.sistemacontable.entity.enums.NaturalezaCuenta;
 import com.sistemacontable.entity.enums.TipoPartida;
+import com.sistemacontable.entity.enums.FormaPago;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -49,9 +50,8 @@ class PeticionesTest {
     @Test
     void unaPeticionCompletaNoTieneViolaciones() {
         assertTrue(campos(new DepartamentoRequest("Ventas", null)).isEmpty());
-        assertTrue(campos(new CompraRequest(1L, 2L, null, null,
-                BigDecimal.ZERO,
-                List.of(new CompraRequest.Linea(3L, 4L, BigDecimal.ONE, BigDecimal.TEN)))).isEmpty());
+        assertTrue(campos(new CompraRequest(1L, 2L, null, null,null,FormaPago.Contado,null,BigDecimal.ZERO,BigDecimal.ZERO,
+                List.of(new CompraRequest.Linea(3L, null, 4L, BigDecimal.ONE, BigDecimal.TEN)))).isEmpty());
     }
 
     @Test
@@ -68,62 +68,45 @@ class PeticionesTest {
     }
 
     @Test
-    void elPorcentajeDeContadoEsObligatorioYEstaEntreCeroYCien() {
-        List<CompraRequest.Linea> lineas = List.of(new CompraRequest.Linea(3L, 4L, BigDecimal.ONE, BigDecimal.TEN));
-        List<VentaRequest.Linea> lineasVenta = List.of(new VentaRequest.Linea(3L, 4L, BigDecimal.ONE, BigDecimal.TEN));
-
-        for (String ok : new String[] {"0", "0.00", "100", "100.00", "33.33", "99.99"}) {
-            assertTrue(campos(new CompraRequest(1L, 2L, null, null, new BigDecimal(ok), lineas)).isEmpty(), ok);
-            assertTrue(campos(new VentaRequest(1L, 2L, null, null, new BigDecimal(ok), lineasVenta)).isEmpty(), ok);
-        }
-        for (String malo : new String[] {"-1", "-0.01", "100.01", "250"}) {
-            assertEquals(Set.of("porcentajeContado"),
-                    campos(new CompraRequest(1L, 2L, null, null, new BigDecimal(malo), lineas)), malo);
-            assertEquals(Set.of("porcentajeContado"),
-                    campos(new VentaRequest(1L, 2L, null, null, new BigDecimal(malo), lineasVenta)), malo);
-        }
-        assertEquals(Set.of("porcentajeContado"), campos(new CompraRequest(1L, 2L, null, null, null, lineas)));
-        assertEquals(Set.of("porcentajeContado"), campos(new VentaRequest(1L, 2L, null, null, null, lineasVenta)));
-    }
-
-    @Test
-    void elPorcentajeDeContadoViajaAlComando() {
-        assertEquals(new BigDecimal("40"),
-                new CompraRequest(1L, 2L, null, null, new BigDecimal("40"), List.of()).aCmd().porcentajeContado());
-        assertEquals(new BigDecimal("33.33"),
-                new VentaRequest(1L, 2L, null, null, new BigDecimal("33.33"), List.of()).aCmd().porcentajeContado());
+    void formaPagoEsObligatoriaYViajaAlComando() {
+        var compra = new CompraRequest(1L,null,null,"CCF-1",null,FormaPago.Cheque,"001",BigDecimal.TEN,BigDecimal.ONE,List.of());
+        assertTrue(campos(compra).isEmpty());
+        assertEquals(FormaPago.Cheque,compra.aCmd().formaPago());
+        assertEquals("001",compra.aCmd().numeroCheque());
+        assertEquals(BigDecimal.TEN,compra.aCmd().descuento());
+        assertEquals(BigDecimal.ONE,compra.aCmd().gastosAdicionales());
+        assertEquals(Set.of("formaPago"),campos(new CompraRequest(1L,null,null,null,null,null,null,null,null,List.of())));
+        assertEquals(Set.of("formaPago"),campos(new VentaRequest(1L,null,2L,null,null,null,null,null,null,List.of())));
+        assertEquals(Set.of("descuento"),campos(new VentaRequest(1L,null,2L,null,null,null,FormaPago.Contado,null,new BigDecimal("-1"),List.of())));
     }
 
     @Test
     void lasLineasDeUnDocumentoSeValidanConSuIndice() {
-        CompraRequest compra = new CompraRequest(1L, 2L, null, null,
-                BigDecimal.ZERO,
-                Arrays.asList(new CompraRequest.Linea(null, 4L, BigDecimal.ONE, null), null));
+        CompraRequest compra = new CompraRequest(1L, 2L, null, null,null,FormaPago.Contado,null,BigDecimal.ZERO,BigDecimal.ZERO,
+                Arrays.asList(new CompraRequest.Linea(null, null, null, BigDecimal.ONE, null), null));
 
         Set<String> campos = campos(compra);
 
-        assertTrue(campos.contains("lineas[0].loteId"), campos.toString());
+        assertTrue(campos.contains("lineas[0].almacenId"), campos.toString());
         assertTrue(campos.contains("lineas[0].precio"), campos.toString());
         assertTrue(campos.stream().anyMatch(c -> c.startsWith("lineas[1]")), campos.toString());
     }
 
     @Test
-    void lasReglasDeNegocioNoSeDuplicanEnElDto() {
-        // cantidad negativa, lineas ausentes o fecha de planilla invertida son reglas del servicio (422), no del DTO
-        assertTrue(campos(new VentaRequest(1L, 2L, null, null,
-                new BigDecimal("100"),
-                List.of(new VentaRequest.Linea(3L, 4L, new BigDecimal("-1"), BigDecimal.ZERO)))).isEmpty());
-        assertTrue(campos(new VentaRequest(1L, 2L, null, null, new BigDecimal("100"), null)).isEmpty());
-        assertTrue(campos(new TrasladoRequest(1L, 1L, null, List.of())).isEmpty());
+    void cantidadNegativaSeValidaYListasVaciasLasRechazaElServicio() {
+        assertEquals(Set.of("lineas[0].cantidad"),campos(new VentaRequest(1L,2L,4L,null,null,null,FormaPago.Contado,null,null,
+                List.of(new VentaRequest.Linea(3L,new BigDecimal("-1"))))));
+        assertTrue(campos(new VentaRequest(1L,2L,4L,null,null,null,FormaPago.Contado,null,null,null)).isEmpty());
+        assertTrue(campos(new TrasladoRequest(1L,1L,null,null,java.math.BigDecimal.ZERO,com.sistemacontable.entity.enums.FormaPago.Contado,null,List.of())).isEmpty());
     }
 
     // ---------------------------------------------------------------------------- a comandos
 
     @Test
     void laCompraSeConvierteEnSuComando() {
-        CompraRequest r = new CompraRequest(1L, 2L, LocalDate.of(2026, 3, 1), "Reposicion", BigDecimal.ZERO, List.of(
-                new CompraRequest.Linea(3L, 4L, new BigDecimal("5"), new BigDecimal("1.25")),
-                new CompraRequest.Linea(6L, 7L, BigDecimal.ONE, BigDecimal.ZERO)));
+        CompraRequest r = new CompraRequest(1L, 2L, LocalDate.of(2026, 3, 1), null,"Reposicion",FormaPago.Contado,null,BigDecimal.ZERO,BigDecimal.ZERO, List.of(
+                new CompraRequest.Linea(3L, null, 4L, new BigDecimal("5"), new BigDecimal("1.25")),
+                new CompraRequest.Linea(6L, null, 7L, BigDecimal.ONE, BigDecimal.ZERO)));
 
         CompraCmd cmd = r.aCmd();
 
@@ -131,30 +114,30 @@ class PeticionesTest {
         assertEquals(2L, cmd.empleadoId());
         assertEquals(LocalDate.of(2026, 3, 1), cmd.fecha());
         assertEquals("Reposicion", cmd.descripcion());
-        assertEquals(List.of(new LineaCompraCmd(3L, 4L, new BigDecimal("5"), new BigDecimal("1.25")),
-                new LineaCompraCmd(6L, 7L, BigDecimal.ONE, BigDecimal.ZERO)), cmd.lineas());
+        assertEquals(List.of(new LineaCompraCmd(3L, null, 4L, new BigDecimal("5"), new BigDecimal("1.25")),
+                new LineaCompraCmd(6L, null, 7L, BigDecimal.ONE, BigDecimal.ZERO)), cmd.lineas());
     }
 
     @Test
     void sinLineasElComandoQuedaConUnaListaVacia() {
-        assertTrue(new CompraRequest(1L, 2L, null, null, BigDecimal.ZERO, null).aCmd().lineas().isEmpty());
-        assertTrue(new VentaRequest(1L, 2L, null, null, new BigDecimal("100"), null).aCmd().lineas().isEmpty());
-        assertTrue(new TrasladoRequest(1L, 2L, null, null).aCmd().lineas().isEmpty());
+        assertTrue(new CompraRequest(1L,2L,null,null,null,FormaPago.Contado,null,BigDecimal.ZERO,BigDecimal.ZERO,null).aCmd().lineas().isEmpty());
+        assertTrue(new VentaRequest(1L,2L,4L,null,null,null,FormaPago.Contado,null,null,null).aCmd().lineas().isEmpty());
+        assertTrue(new TrasladoRequest(1L,2L,null,null,java.math.BigDecimal.ZERO,com.sistemacontable.entity.enums.FormaPago.Contado,null,null).aCmd().lineas().isEmpty());
         assertTrue(new PartidaRequest(LocalDate.now(), "c", TipoPartida.Diario, null, null, null, null).aCmd()
                 .lineas().isEmpty());
     }
 
     @Test
     void laVentaElTrasladoYElAjusteSeConviertenEnSusComandos() {
-        VentaCmd venta = new VentaRequest(1L, 2L, null, "d", new BigDecimal("100"), List.of(
-                new VentaRequest.Linea(3L, 4L, BigDecimal.ONE, BigDecimal.TEN))).aCmd();
-        TrasladoCmd traslado = new TrasladoRequest(1L, 2L, "mover", List.of(
+        VentaCmd venta = new VentaRequest(1L,2L,4L,null,null,"d",FormaPago.Contado,null,null, List.of(
+                new VentaRequest.Linea(3L,BigDecimal.ONE))).aCmd();
+        TrasladoCmd traslado = new TrasladoRequest(1L,2L,null,"mover",java.math.BigDecimal.ZERO,com.sistemacontable.entity.enums.FormaPago.Contado,null,List.of(
                 new TrasladoRequest.Linea(3L, new BigDecimal("4")))).aCmd();
         AjusteCmd ajuste = new AjusteRequest(1L, 2L, new BigDecimal("-3"), "merma").aCmd();
 
         assertEquals(1L, venta.clienteId());
         assertNull(venta.fecha());
-        assertEquals(List.of(new LineaVentaCmd(3L, 4L, BigDecimal.ONE, BigDecimal.TEN)), venta.lineas());
+        assertEquals(List.of(new LineaVentaCmd(3L,BigDecimal.ONE)), venta.lineas());
         assertEquals(1L, traslado.almacenOrigenId());
         assertEquals(2L, traslado.almacenDestinoId());
         assertEquals(List.of(new LineaTrasladoCmd(3L, new BigDecimal("4"))), traslado.lineas());

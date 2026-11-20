@@ -37,7 +37,8 @@ public class MapeoEntidadesTest {
             Almacen.class, Cliente.class, Compra.class, CompraDetalle.class, Cuenta.class, Departamento.class,
             Empleado.class, Existencias.class, Kardex.class, KardexDetalle.class, Lote.class, Partida.class,
             PartidaDetalle.class, Planilla.class, PlanillaDetalle.class, Producto.class, Proveedor.class,
-            Tercero.class, TipoProducto.class, UnidadMedida.class, Venta.class, VentaDetalle.class);
+            Tercero.class, TipoProducto.class, UnidadMedida.class, Venta.class, VentaDetalle.class, Periodo.class, PagoCredito.class,
+            DevolucionCompra.class,DevolucionCompraDetalle.class,DevolucionVenta.class,DevolucionVentaDetalle.class);
 
     static List<Class<? extends EntidadBase>> entidades() {
         return ENTIDADES;
@@ -55,8 +56,8 @@ public class MapeoEntidadesTest {
     }
 
     @Test
-    void sonVeintidosEntidades() {
-        assertEquals(22, ENTIDADES.size());
+    void entidadesConIdNumerico() {
+        assertEquals(28, ENTIDADES.size());
     }
 
     @ParameterizedTest
@@ -92,7 +93,8 @@ public class MapeoEntidadesTest {
         Set<String> esperadas = new TreeSet<>(Set.of("departamento", "empleado", "cuentas", "tercero", "cliente",
                 "proveedor", "unidad_medida", "tipo_producto", "producto", "lote", "almacen", "existencias",
                 "compra", "compra_detalle", "ventas", "ventas_detalle", "kardex", "kardex_detalle", "partida",
-                "partida_detalle", "planilla", "planilla_detalle"));
+                "partida_detalle", "planilla", "planilla_detalle", "periodo", "pago_credito",
+                "devolucion_compra", "devolucion_compra_detalle", "devolucion_venta", "devolucion_venta_detalle"));
         Set<String> reales = ENTIDADES.stream().map(c -> c.getAnnotation(Table.class).name())
                 .collect(Collectors.toCollection(TreeSet::new));
         assertEquals(esperadas, reales);
@@ -104,6 +106,9 @@ public class MapeoEntidadesTest {
             Set<String> listadas = clasesDeUnidad(unidad);
             Set<String> esperadas = ENTIDADES.stream().map(Class::getName).collect(Collectors.toCollection(TreeSet::new));
             esperadas.add(EntidadBase.class.getName());
+            esperadas.add(InstantConverter.class.getName());
+            esperadas.add(Parametro.class.getName());
+            esperadas.add(com.sistemacontable.security.Perfil.class.getName());
             assertEquals(esperadas, listadas, unidad);
         }
     }
@@ -136,8 +141,12 @@ public class MapeoEntidadesTest {
         assertEquals(List.of("Activo", "Inactivo", "Suspendido"), nombres(EstadoEmpleado.values()));
         assertEquals(List.of("Pendiente", "Pagado"), nombres(EstadoPlanilla.values()));
         assertEquals(List.of("Acreedora", "Deudora"), nombres(NaturalezaCuenta.values()));
-        assertEquals(List.of("Entrada", "Salida", "Traslado", "Ajuste"), nombres(TipoMovimiento.values()));
-        assertEquals(List.of("Diario", "Ingreso", "Egreso", "Ajuste", "Cierre"), nombres(TipoPartida.values()));
+        assertEquals(List.of("Entrada", "Salida", "Traslado", "Devolucion", "Ajuste"), nombres(TipoMovimiento.values()));
+        assertEquals(List.of("Diario", "Ingreso", "Egreso", "Ajuste", "Cierre", "Apertura"), nombres(TipoPartida.values()));
+        assertEquals(List.of("Contado","Credito","Cheque"),nombres(com.sistemacontable.entity.enums.FormaPago.values()));
+        assertEquals(List.of("Abierto","Cerrado"),nombres(com.sistemacontable.entity.enums.EstadoPeriodo.values()));
+        assertEquals(java.util.UUID.class,campoId(com.sistemacontable.security.Perfil.class).getType());
+        assertEquals(String.class,campoId(Parametro.class).getType());
     }
 
     private static List<String> nombres(Enum<?>[] valores) {

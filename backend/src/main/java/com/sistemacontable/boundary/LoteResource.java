@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.dto.LoteRequest;
 import com.sistemacontable.boundary.mapper.CatalogoMapper;
 import com.sistemacontable.control.service.LoteService;
@@ -28,6 +30,7 @@ import jakarta.ws.rs.core.UriInfo;
  * <p>Solo delega en {@link LoteService}: sin reglas de negocio ni acceso a datos. La transaccion abarca la
  * peticion para que el mapeo a DTO lea las relaciones perezosas dentro de ella.</p>
  */
+@Roles({RolApp.Ventas, RolApp.Bodega, RolApp.Contabilidad, RolApp.RRHH})
 @Path("/lotes")
 @RequestScoped
 @Transactional
@@ -52,18 +55,21 @@ public class LoteResource {
         return Respuestas.ok(CatalogoMapper.lote(servicio.buscarPorId(id)));
     }
 
+    @Roles({RolApp.Bodega})
     @POST
     public Response crear(@Valid LoteRequest cuerpo, @Context UriInfo uriInfo) {
         var creado = servicio.crear(Respuestas.requerir(cuerpo).aCmd());
         return Respuestas.creado(uriInfo, "lotes", creado.getId(), CatalogoMapper.lote(creado));
     }
 
+    @Roles({RolApp.Bodega})
     @PUT
     @Path("/{id}")
     public Response modificar(@PathParam("id") Long id, @Valid LoteRequest cuerpo) {
         return Respuestas.ok(CatalogoMapper.lote(servicio.modificar(id, Respuestas.requerir(cuerpo).aCmd())));
     }
 
+    @Roles({RolApp.Bodega})
     @DELETE
     @Path("/{id}")
     public Response eliminar(@PathParam("id") Long id) {

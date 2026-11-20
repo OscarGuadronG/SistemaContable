@@ -44,10 +44,13 @@ public final class JpaTestSupport {
      */
     static String adaptarEsquema(String sql) {
         return sql.replaceAll("(?m)^\\s*--.*$", "")
+                .replace("REFERENCES auth.users(id)", "")
+                .replace("forma_pago forma_pago", "forma_pago varchar")
                 .replace("::numeric", "")
                 .replaceAll("\\bnumeric\\b", "decfloat")
-                .replaceAll("\\b(estado_empleado|estado_planilla|naturaleza_cuenta|tipo_movimiento|tipo_partida)\\b",
+                .replaceAll("\\b(estado_empleado|estado_planilla|naturaleza_cuenta|tipo_movimiento|tipo_partida|rol_app|estado_periodo)\\b",
                         "varchar")
+                .replaceAll("\\bjsonb\\b", "varchar")
                 .replace("DEFAULT now()", "DEFAULT CURRENT_TIMESTAMP");
     }
 

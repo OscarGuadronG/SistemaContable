@@ -65,7 +65,7 @@ class AjusteServiceTest {
     private final Almacen cerrado = Fabrica.almacen(22, false);
     private final Lote lote = Fabrica.lote(10);
     private final Cuenta inventario = Fabrica.cuenta(1, 1104);
-    private final Cuenta cuentaAjuste = Fabrica.cuenta(2, 5301);
+    private final Cuenta cuentaAjuste = Fabrica.cuenta(2, 5203);
 
     private static BigDecimal bd(String v) {
         return new BigDecimal(v);
@@ -76,10 +76,11 @@ class AjusteServiceTest {
         when(almacenDAO.buscarPorId(20L)).thenReturn(Optional.of(almacen));
         when(almacenDAO.buscarPorId(22L)).thenReturn(Optional.of(cerrado));
         when(loteDAO.buscarPorId(10L)).thenReturn(Optional.of(lote));
-        when(existenciasService.costoPromedio(10L)).thenReturn(Optional.of(bd("4.0000")));
+        when(existenciasService.costoEntradas(10L, 20L)).thenReturn(Optional.of(bd("4.0000")));
         when(config.getBoolean(ConfigContable.AJUSTE_GENERA_PARTIDA)).thenReturn(false);
         when(partidaService.cuentaConfigurada(ConfigContable.CUENTA_INVENTARIO)).thenReturn(inventario);
-        when(partidaService.cuentaConfigurada(ConfigContable.CUENTA_AJUSTE_INVENTARIO)).thenReturn(cuentaAjuste);
+        when(partidaService.cuentaConfigurada("cuenta.otros.ingresos")).thenReturn(cuentaAjuste);
+        when(partidaService.cuentaConfigurada("cuenta.otros.gastos")).thenReturn(cuentaAjuste);
         when(kardexService.registrar(any(), any(), any(), any(), any(), any(), any()))
                 .thenAnswer(inv -> new MovimientoKardex(new Kardex(), List.of()));
         when(partidaService.registrar(any(), any(), any(), any(), any(), any(), any())).thenAnswer(inv -> {
@@ -159,7 +160,7 @@ class AjusteServiceTest {
     @Test
     void conPartidaActivaYLoteSinCostoSeRechazaSinEscribir() {
         when(config.getBoolean(ConfigContable.AJUSTE_GENERA_PARTIDA)).thenReturn(true);
-        when(existenciasService.costoPromedio(10L)).thenReturn(Optional.empty());
+        when(existenciasService.costoEntradas(10L, 20L)).thenReturn(Optional.empty());
 
         ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
                 () -> servicio.registrar(new AjusteCmd(20L, 10L, bd("5"), "Conteo")));
@@ -170,7 +171,7 @@ class AjusteServiceTest {
 
     @Test
     void sinPartidaActivaUnLoteSinCostoSeAjustaConCostoCero() {
-        when(existenciasService.costoPromedio(10L)).thenReturn(Optional.empty());
+        when(existenciasService.costoEntradas(10L, 20L)).thenReturn(Optional.empty());
 
         servicio.registrar(new AjusteCmd(20L, 10L, bd("5"), "Conteo"));
 

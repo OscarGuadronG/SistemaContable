@@ -48,7 +48,7 @@ class PartidaServiceH2Test {
 
     @Test
     void creaPartidaConSusLineasYSePuedeConsultar() {
-        PartidaCmd cmd = new PartidaCmd(LocalDate.of(2026, 3, 1), "Venta mostrador", TipoPartida.Ingreso, null, null,
+        PartidaCmd cmd = new PartidaCmd(LocalDate.of(2026, 7, 1), "Venta mostrador", TipoPartida.Ingreso, null, null,
                 null, List.of(new LineaPartidaCmd(esc.caja.getId(), bd("113.00"), null),
                         new LineaPartidaCmd(esc.ventas.getId(), null, bd("100.00")),
                         new LineaPartidaCmd(esc.ivaDebito.getId(), null, bd("13.00"))));
@@ -59,13 +59,13 @@ class PartidaServiceH2Test {
         List<PartidaDetalle> lineas = servicio.lineas(p.getId());
         assertEquals(3, lineas.size());
         assertSame(p, servicio.buscarPorId(p.getId()));
-        assertEquals(List.of(p), servicio.buscarPorRango(LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)));
-        assertEquals(0, servicio.buscarPorRango(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 4, 30)).size());
+        assertEquals(List.of(p), servicio.buscarPorRango(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 9, 30)));
+        assertEquals(0, servicio.buscarPorRango(LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31)).size());
     }
 
     @Test
     void unaPartidaDescuadradaNoDejaFilas() {
-        PartidaCmd cmd = new PartidaCmd(LocalDate.of(2026, 3, 1), "Mal", TipoPartida.Diario, null, null, null,
+        PartidaCmd cmd = new PartidaCmd(LocalDate.of(2026, 7, 1), "Mal", TipoPartida.Diario, null, null, null,
                 List.of(new LineaPartidaCmd(esc.caja.getId(), bd("10"), null),
                         new LineaPartidaCmd(esc.ventas.getId(), null, bd("9"))));
 

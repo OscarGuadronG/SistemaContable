@@ -4,6 +4,7 @@ import com.sistemacontable.control.CompraDAO;
 import com.sistemacontable.control.CuentaDAO;
 import com.sistemacontable.control.PartidaDAO;
 import com.sistemacontable.control.PartidaDetalleDAO;
+import com.sistemacontable.control.PeriodoDAO;
 import com.sistemacontable.control.TerceroDAO;
 import com.sistemacontable.control.VentaDAO;
 import com.sistemacontable.control.config.ConfigContable;
@@ -15,9 +16,11 @@ import com.sistemacontable.entity.Compra;
 import com.sistemacontable.entity.Cuenta;
 import com.sistemacontable.entity.Partida;
 import com.sistemacontable.entity.PartidaDetalle;
+import com.sistemacontable.entity.Periodo;
 import com.sistemacontable.entity.Tercero;
 import com.sistemacontable.entity.Venta;
 import com.sistemacontable.entity.enums.TipoPartida;
+import com.sistemacontable.entity.enums.EstadoPeriodo;
 import jakarta.ejb.LocalBean;
 import jakarta.ejb.Stateless;
 import jakarta.inject.Inject;
@@ -56,6 +59,8 @@ public class PartidaService {
     @Inject
     private TerceroDAO terceroDAO;
     @Inject
+    private PeriodoDAO periodoDAO;
+    @Inject
     private ConfigContable config;
 
     /** Crea una partida a partir de una orden externa (todo por ids). */
@@ -67,6 +72,9 @@ public class PartidaService {
             throw new ReglaNegocioException("Una partida no puede estar ligada a una compra y a una venta a la vez");
         }
         requerirDatos(cmd.fecha(), cmd.concepto(), cmd.tipo());
+        if (cmd.tipo() == TipoPartida.Cierre || cmd.tipo() == TipoPartida.Apertura) {
+            throw new ReglaNegocioException("Las partidas Cierre y Apertura solo las genera el cierre de periodos");
+        }
         Compra compra = cmd.compraId() == null ? null : compraDAO.buscarPorId(cmd.compraId())
                 .orElseThrow(() -> new NoEncontradoException("Compra", cmd.compraId()));
         Venta venta = cmd.ventaId() == null ? null : ventaDAO.buscarPorId(cmd.ventaId())
@@ -97,6 +105,12 @@ public class PartidaService {
         List<LineaAsiento> normalizadas = normalizar(lineas);
         ReglasPartida.validar(normalizadas);
 
+        Periodo periodo = periodoDAO.findByFechaParaActualizar(fecha)
+                .orElseThrow(() -> new ReglaNegocioException("No existe un periodo contable para la fecha " + fecha));
+        if (periodo.getEstado() != EstadoPeriodo.Abierto) {
+            throw new ReglaNegocioException("No se pueden registrar partidas en un periodo cerrado");
+        }
+
         Partida partida = new Partida();
         partida.setFecha(fecha);
         partida.setConcepto(concepto.trim());
@@ -104,6 +118,7 @@ public class PartidaService {
         partida.setCompra(compra);
         partida.setVenta(venta);
         partida.setTercero(tercero);
+        partida.setPeriodo(periodo);
         partidaDAO.crear(partida);
         for (LineaAsiento l : normalizadas) {
             PartidaDetalle detalle = new PartidaDetalle();
@@ -135,6 +150,22 @@ public class PartidaService {
 
     public List<Partida> listar(int first, int max) {
         return partidaDAO.findRange(first, max);
+    }
+
+    public List<Partida> buscar(LocalDate desde,LocalDate hasta,TipoPartida tipo,Long terceroId,String origen,Long periodoId,int first,int max) {
+        if(desde!=null&&hasta!=null&&desde.isAfter(hasta)) throw new ReglaNegocioException("La fecha inicial no puede ser posterior a la final");
+        if(origen!=null&&!List.of("compra","venta","traslado","ajuste","planilla","pago","devolucion","manual","cierre","apertura").contains(origen))
+            throw new ReglaNegocioException("El origen de partida no es válido");
+        return partidaDAO.buscar(desde,hasta,tipo,terceroId,periodoId,origen,first,max);
+    }
+
+    public long contarBuscar(LocalDate desde,LocalDate hasta,TipoPartida tipo,Long terceroId,String origen,Long periodoId) {
+        return partidaDAO.contarBuscar(desde,hasta,tipo,terceroId,periodoId,origen);
+    }
+
+    public List<ResumenPartida> resumen(List<Partida> partidas) {
+        return partidas.stream().map(p->{ var sumas=partidaDetalleDAO.totalesPorPartida(p.getId());
+            return new ResumenPartida(p,sumas.cargo(),sumas.abono()); }).toList();
     }
 
     /** Total de registros (cabecera Total-Records de la paginacion REST). */

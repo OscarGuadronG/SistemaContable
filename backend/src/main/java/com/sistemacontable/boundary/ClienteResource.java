@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.dto.ClienteRequest;
 import com.sistemacontable.boundary.mapper.CatalogoMapper;
 import com.sistemacontable.control.service.ClienteService;
@@ -28,6 +30,7 @@ import jakarta.ws.rs.core.UriInfo;
  * <p>Solo delega en {@link ClienteService}: sin reglas de negocio ni acceso a datos. La transaccion abarca la
  * peticion para que el mapeo a DTO lea las relaciones perezosas dentro de ella.</p>
  */
+@Roles({RolApp.Ventas, RolApp.Contabilidad})
 @Path("/clientes")
 @RequestScoped
 @Transactional
@@ -52,18 +55,21 @@ public class ClienteResource {
         return Respuestas.ok(CatalogoMapper.cliente(servicio.buscarPorId(id)));
     }
 
+    @Roles({RolApp.Ventas})
     @POST
     public Response crear(@Valid ClienteRequest cuerpo, @Context UriInfo uriInfo) {
         var creado = servicio.crear(Respuestas.requerir(cuerpo).aCmd());
         return Respuestas.creado(uriInfo, "clientes", creado.getId(), CatalogoMapper.cliente(creado));
     }
 
+    @Roles({RolApp.Ventas})
     @PUT
     @Path("/{id}")
     public Response modificar(@PathParam("id") Long id, @Valid ClienteRequest cuerpo) {
         return Respuestas.ok(CatalogoMapper.cliente(servicio.modificar(id, Respuestas.requerir(cuerpo).aCmd())));
     }
 
+    @Roles({RolApp.Ventas})
     @DELETE
     @Path("/{id}")
     public Response eliminar(@PathParam("id") Long id) {

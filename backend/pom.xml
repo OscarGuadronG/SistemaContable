@@ -23,6 +23,7 @@
         <jersey.version>3.1.9</jersey.version>
         <hibernate.validator.version>8.0.1.Final</hibernate.validator.version>
         <expressly.version>5.0.0</expressly.version>
+        <nimbus.version>9.40</nimbus.version>
 
         <!-- Valor por defecto: JaCoCo lo reemplaza al preparar el agente. -->
         <argLine></argLine>
@@ -36,6 +37,12 @@
             <artifactId>jakarta.jakartaee-api</artifactId>
             <version>10.0.0</version>
             <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>com.nimbusds</groupId>
+            <artifactId>nimbus-jose-jwt</artifactId>
+            <version>${nimbus.version}</version>
         </dependency>
 
         <!-- Driver JDBC: en Liberty lo copia liberty-maven-plugin (copyDependencies); no va dentro del WAR. -->
@@ -152,6 +159,21 @@
                 <artifactId>maven-dependency-plugin</artifactId>
                 <version>3.6.1</version>
                 <executions>
+                    <execution>
+                        <id>driver-postgresql-para-contenedor</id>
+                        <phase>package</phase>
+                        <goals><goal>copy</goal></goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>org.postgresql</groupId>
+                                    <artifactId>postgresql</artifactId>
+                                    <version>${postgresql.version}</version>
+                                    <outputDirectory>${project.build.directory}/liberty-driver</outputDirectory>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
                     <execution>
                         <id>ruta-mockito-agent</id>
                         <phase>initialize</phase>

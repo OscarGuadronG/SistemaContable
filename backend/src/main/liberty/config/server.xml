@@ -1,15 +1,25 @@
 <server description="Sistema Contable">
 
     <featureManager>
-        <feature>webProfile-10.0</feature>
+        <feature>restfulWS-3.1</feature>
+        <feature>cdi-4.0</feature>
+        <feature>jsonb-3.0</feature>
+        <feature>beanValidation-3.0</feature>
+        <feature>persistence-3.1</feature>
+        <feature>enterpriseBeansLite-4.0</feature>
+        <feature>jdbc-4.3</feature>
     </featureManager>
+
+    <variable name="PORT" defaultValue="9080"/>
 
     <httpEndpoint id="defaultHttpEndpoint"
                   host="*"
-                  httpPort="9080"
+                  httpPort="${PORT}"
                   httpsPort="9443"/>
 
     <applicationManager autoExpand="true"/>
+
+    <webApplication location="sistema-contable.war" contextRoot="/"/>
 
     <!-- ===================== VARIABLES DE CONEXION =====================
          Orden de precedencia de Liberty (de menor a mayor): defaultValue de server.xml, variables de
@@ -33,6 +43,7 @@
 
     <dataSource id="ContableDS" jndiName="jdbc/ContableDS">
         <jdbcDriver libraryRef="postgresql-library"/>
+        <connectionManager maxPoolSize="5"/>
         <!-- stringType=unspecified: pgjdbc envia los String sin tipo y Postgres los convierte al
              enum que corresponda (estado_empleado, tipo_partida, ...). Sin esto, los INSERT con
              @Enumerated(STRING) fallan con "column is of type ... but expression is of type varchar". -->

@@ -110,16 +110,16 @@ class ErroresHttpTest {
     void laRutaDeUnaViolacionConserva_elIndiceDeLaLineaYOmiteMetodoYParametro() {
         Validator validador = Validation.buildDefaultValidatorFactory().getValidator();
         com.sistemacontable.boundary.dto.CompraRequest compra = new com.sistemacontable.boundary.dto.CompraRequest(1L, 2L,
-                null, null, java.math.BigDecimal.ZERO, java.util.Arrays.asList(
-                        new com.sistemacontable.boundary.dto.CompraRequest.Linea(1L, 1L, java.math.BigDecimal.ONE,
+                null,null,null,com.sistemacontable.entity.enums.FormaPago.Contado,null,null,null,java.util.Arrays.asList(
+                        new com.sistemacontable.boundary.dto.CompraRequest.Linea(1L,null,1L, java.math.BigDecimal.ONE,
                                 java.math.BigDecimal.ONE),
-                        new com.sistemacontable.boundary.dto.CompraRequest.Linea(null, 1L, java.math.BigDecimal.ONE,
+                        new com.sistemacontable.boundary.dto.CompraRequest.Linea(null,null,null, java.math.BigDecimal.ONE,
                                 null)));
 
         Traduccion t = ErroresHttp.traducir(new ConstraintViolationException(validador.validate(compra)));
 
         List<String> campos = t.cuerpo().violaciones().stream().map(ErrorDto.Violacion::campo).toList();
-        assertEquals(List.of("lineas[1].loteId", "lineas[1].precio"), campos);
+        assertEquals(List.of("lineas[1].almacenId", "lineas[1].precio"), campos);
     }
 
     // --------------------------------------------------------------------------- envoltorios EJB/JTA
@@ -306,4 +306,14 @@ class ErroresHttpTest {
 
         assertEquals(500, ErroresHttp.traducir(a).estado());
     }
+    @org.junit.jupiter.api.Test
+    void unicidadTieneMensajesLegiblesSinExponerSql() {
+        for (String[] caso : new String[][]{{"empleado_dui_key","DUI"},{"empleado_numero_isss_key","ISSS"},{"cliente_nit_key","NIT"},{"cuentas_codigo_key","código"}}) {
+            var error=ErroresHttp.traducir(new jakarta.persistence.PersistenceException(new java.sql.SQLException("duplicate key violates "+caso[0],"23505")));
+            assertEquals(409,error.estado());
+            assertTrue(error.cuerpo().mensaje().contains(caso[1]));
+            assertFalse(error.cuerpo().mensaje().contains("duplicate key"));
+        }
+    }
+
 }

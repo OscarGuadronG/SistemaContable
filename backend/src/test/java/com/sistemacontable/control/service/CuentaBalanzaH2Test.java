@@ -108,7 +108,7 @@ class CuentaBalanzaH2Test {
         assertEquals(bd("140.00"), filaGrupo.cargos());
         assertEquals(bd("15.00"), filaGrupo.abonos());
         assertEquals(bd("125.00"), filaGrupo.saldo());
-        FilaBalanza filaVentas = b.filas().stream().filter(f -> f.codigo() == 4101).findFirst().orElseThrow();
+        FilaBalanza filaVentas = b.filas().stream().filter(f -> f.codigo() == 5101).findFirst().orElseThrow();
         assertEquals(bd("125.00"), filaVentas.saldo());
         assertEquals(bd("140.00"), b.totalCargos());
         assertTrue(b.cuadra());

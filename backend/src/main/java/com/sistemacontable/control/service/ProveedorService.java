@@ -69,7 +69,7 @@ public class ProveedorService {
         String nit = Validaciones.texto(cmd.nit(), "NIT");
         proveedorDAO.findByNit(nit).ifPresent(otro -> {
             if (!otro.equals(proveedor)) {
-                throw new ReglaNegocioException("Ya existe un proveedor con el NIT " + nit);
+                throw new com.sistemacontable.control.exception.ConflictoException("Ya existe un proveedor con el NIT " + nit);
             }
         });
         proveedor.setNombre(nombre);

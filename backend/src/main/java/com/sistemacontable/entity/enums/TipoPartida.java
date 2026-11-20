@@ -9,5 +9,6 @@ public enum TipoPartida {
     Ingreso,
     Egreso,
     Ajuste,
-    Cierre
+    Cierre,
+    Apertura
 }

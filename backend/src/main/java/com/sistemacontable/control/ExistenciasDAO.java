@@ -1,6 +1,7 @@
 package com.sistemacontable.control;
 
 import com.sistemacontable.entity.Existencias;
+import com.sistemacontable.entity.Producto;
 import jakarta.ejb.LocalBean;
 import jakarta.ejb.Stateless;
 import jakarta.persistence.EntityManager;
@@ -62,5 +63,21 @@ public class ExistenciasDAO extends AbstractDAO<Existencias, Long> {
                 .setParameter("loteId", loteId)
                 .getSingleResult();
         return total == null ? BigDecimal.ZERO : total;
+    }
+
+    public List<Existencias> findProductoEnAlmacen(Long productoId, Long almacenId) {
+        return em().createQuery("SELECT x FROM Existencias x WHERE x.lote.producto.id = :producto "
+                + "AND x.almacen.id = :almacen AND x.cantidad > 0 ORDER BY x.lote.id", Existencias.class)
+                .setParameter("producto", productoId).setParameter("almacen", almacenId).getResultList();
+    }
+
+    public List<Existencias> findEnAlmacen(Long almacenId) {
+        return em().createQuery("SELECT x FROM Existencias x WHERE x.almacen.id = :almacen AND x.cantidad > 0 "
+                + "ORDER BY x.lote.producto.nombre, x.lote.id", Existencias.class)
+                .setParameter("almacen", almacenId).getResultList();
+    }
+    public List<Existencias> findProducto(Long productoId) {
+        return em().createQuery("SELECT x FROM Existencias x WHERE x.lote.producto.id = :producto AND x.cantidad > 0 ORDER BY x.almacen.nombre,x.lote.id", Existencias.class)
+                .setParameter("producto", productoId).getResultList();
     }
 }

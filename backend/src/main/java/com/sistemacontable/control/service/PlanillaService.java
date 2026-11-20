@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.LocalDate;
 
 /**
  * Planillas de pago: creacion, detalle por empleado, calculo y pago con partida automatica.
@@ -181,6 +182,7 @@ public class PlanillaService {
         planillaDAO.modificar(planilla);
         Partida partida = partidaService.registrar(TipoPartida.Egreso, planilla.getFechaPago().toLocalDate(),
                 "Pago de planilla #" + planilla.getId(), null, null, null, asiento);
+        partida.setIdPlanilla(planilla.getId());
         return new PagoPlanilla(planilla, partida, resumen);
     }
 
@@ -192,6 +194,14 @@ public class PlanillaService {
 
     public List<Planilla> listar(int first, int max) {
         return planillaDAO.findRange(first, max);
+    }
+
+    public List<Planilla> buscar(com.sistemacontable.entity.enums.EstadoPlanilla estado,LocalDate desde,LocalDate hasta,int first,int max) {
+        if(desde!=null&&hasta!=null&&desde.isAfter(hasta)) throw new ReglaNegocioException("La fecha inicial no puede ser posterior a la final");
+        return planillaDAO.buscar(estado,desde,hasta,first,max);
+    }
+    public long contar(com.sistemacontable.entity.enums.EstadoPlanilla estado,LocalDate desde,LocalDate hasta) {
+        return planillaDAO.contar(estado,desde,hasta);
     }
 
     /** Total de registros (cabecera Total-Records de la paginacion REST). */

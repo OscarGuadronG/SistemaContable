@@ -35,6 +35,11 @@ public class KardexService {
     /** Registra un movimiento (cabecera + una fila por detalle) con fecha y hora actuales. */
     public MovimientoKardex registrar(TipoMovimiento tipo, Almacen origen, Almacen destino, Compra compra,
             Venta venta, String descripcion, List<DetalleKardex> detalles) {
+        return registrar(tipo, origen, destino, compra, venta, descripcion, OffsetDateTime.now(), detalles);
+    }
+
+    public MovimientoKardex registrar(TipoMovimiento tipo, Almacen origen, Almacen destino, Compra compra,
+            Venta venta, String descripcion, OffsetDateTime fecha, List<DetalleKardex> detalles) {
         ReglasKardex.validar(tipo, origen, destino, compra, venta, detalles);
 
         Kardex kardex = new Kardex();
@@ -44,7 +49,7 @@ public class KardexService {
         kardex.setCompra(compra);
         kardex.setVenta(venta);
         kardex.setDescripcion(descripcion);
-        kardex.setFecha(OffsetDateTime.now());
+        kardex.setFecha(fecha == null ? OffsetDateTime.now() : fecha);
         kardexDAO.crear(kardex);
 
         List<KardexDetalle> filas = new ArrayList<>();

@@ -2,6 +2,7 @@ package com.sistemacontable.control.service;
 
 import com.sistemacontable.control.CompraDetalleDAO;
 import com.sistemacontable.control.ExistenciasDAO;
+import com.sistemacontable.control.KardexDAO;
 import com.sistemacontable.control.exception.NoEncontradoException;
 import com.sistemacontable.control.exception.ReglaNegocioException;
 import com.sistemacontable.entity.Almacen;
@@ -33,6 +34,7 @@ public class ExistenciasService {
     private ExistenciasDAO existenciasDAO;
     @Inject
     private CompraDetalleDAO compraDetalleDAO;
+    @Inject private KardexDAO kardexDAO;
 
     /** Suma {@code cantidad} al stock del lote en el almacen, creando la fila si no existe. */
     public Existencias aumentar(Lote lote, Almacen almacen, BigDecimal cantidad) {
@@ -94,6 +96,28 @@ public class ExistenciasService {
     public Optional<BigDecimal> costoPromedio(Long loteId) {
         return compraDetalleDAO.costoPromedioPonderado(loteId).map(Dinero::redondearCosto);
     }
+
+    public Optional<BigDecimal> costoEntradas(Long loteId, Long almacenId) {
+        return kardexDAO.costoEntradas(loteId, almacenId).map(Dinero::redondearCosto);
+    }
+
+    public Optional<java.time.OffsetDateTime> primeraEntrada(Long loteId, Long almacenId) {
+        return kardexDAO.primeraEntrada(loteId, almacenId);
+    }
+
+    public List<Existencias> porProductoAlmacen(Long productoId, Long almacenId) {
+        return existenciasDAO.findProductoEnAlmacen(productoId, almacenId);
+    }
+
+    /** Bloquea filas en orden estable antes de calcular el FIFO de un producto y almacén. */
+    public void bloquearProductoAlmacen(Long productoId, Long almacenId) {
+        existenciasDAO.findProductoEnAlmacen(productoId, almacenId).stream()
+                .map(Existencias::getLote).map(Lote::getId).sorted()
+                .forEach(loteId -> existenciasDAO.findForUpdate(loteId, almacenId));
+    }
+
+    public List<Existencias> porAlmacen(Long almacenId) { return existenciasDAO.findEnAlmacen(almacenId); }
+    public List<Existencias> porProducto(Long productoId) { return existenciasDAO.findProducto(productoId); }
 
     private static void exigirPositiva(BigDecimal cantidad) {
         if (cantidad == null || cantidad.signum() <= 0) {

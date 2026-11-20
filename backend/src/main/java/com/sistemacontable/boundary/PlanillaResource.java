@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.dto.DetallePlanillaRequest;
 import com.sistemacontable.boundary.dto.PlanillaRequest;
 import com.sistemacontable.boundary.mapper.PlanillaMapper;
@@ -25,6 +27,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
 import java.util.List;
+import java.time.LocalDate;
+import com.sistemacontable.entity.enums.EstadoPlanilla;
 
 /**
  * Planillas de pago: creacion, detalle por empleado, calculo y pago (con su partida de egreso). Una planilla pagada
@@ -33,6 +37,7 @@ import java.util.List;
  *
  * <p>Solo delega en {@link PlanillaService}: sin reglas de negocio ni acceso a datos.</p>
  */
+@Roles({RolApp.Contabilidad, RolApp.RRHH})
 @Path("/planillas")
 @RequestScoped
 @Transactional
@@ -45,9 +50,10 @@ public class PlanillaResource {
 
     @GET
     public Response listar(@QueryParam("first") @DefaultValue(Paginacion.PRIMERO_POR_DEFECTO_TEXTO) int first,
-            @QueryParam("max") @DefaultValue(Paginacion.MAX_POR_DEFECTO_TEXTO) int max) {
+            @QueryParam("max") @DefaultValue(Paginacion.MAX_POR_DEFECTO_TEXTO) int max,@QueryParam("estado") EstadoPlanilla estado,
+            @QueryParam("desde") LocalDate desde,@QueryParam("hasta") LocalDate hasta) {
         Paginacion pagina = Paginacion.de(first, max);
-        return Respuestas.pagina(servicio.listar(pagina.first(), pagina.max()), servicio.contar(),
+        return Respuestas.pagina(servicio.buscar(estado,desde,hasta,pagina.first(),pagina.max()), servicio.contar(estado,desde,hasta),
                 PlanillaMapper::planilla);
     }
 
@@ -58,12 +64,14 @@ public class PlanillaResource {
     }
 
     /** Crea una planilla en estado Pendiente. */
+    @Roles({RolApp.RRHH})
     @POST
     public Response crear(@Valid PlanillaRequest cuerpo, @Context UriInfo uriInfo) {
         Planilla planilla = servicio.crear(Respuestas.requerir(cuerpo).aCmd());
         return Respuestas.creado(uriInfo, "planillas", planilla.getId(), PlanillaMapper.planilla(planilla));
     }
 
+    @Roles({RolApp.RRHH})
     @PUT
     @Path("/{id}")
     public Response modificar(@PathParam("id") Long id, @Valid PlanillaRequest cuerpo) {
@@ -80,6 +88,7 @@ public class PlanillaResource {
     }
 
     /** Agrega el detalle de un empleado Activo (un solo detalle por empleado y planilla). */
+    @Roles({RolApp.RRHH})
     @POST
     @Path("/{id}/detalles")
     public Response agregarDetalle(@PathParam("id") Long id, @Valid DetallePlanillaRequest cuerpo,
@@ -89,6 +98,7 @@ public class PlanillaResource {
     }
 
     /** Crea el detalle por defecto de cada empleado Activo que aun no lo tiene; devuelve solo los creados. */
+    @Roles({RolApp.RRHH})
     @POST
     @Path("/{id}/detalles/generar")
     public Response generarDetalles(@PathParam("id") Long id) {
@@ -103,6 +113,7 @@ public class PlanillaResource {
     }
 
     /** Cambia dias y horas de un detalle de una planilla Pendiente (el empleado no se puede cambiar). */
+    @Roles({RolApp.RRHH})
     @PUT
     @Path("/detalles/{detalleId}")
     public Response modificarDetalle(@PathParam("detalleId") Long detalleId, @Valid DetallePlanillaRequest cuerpo) {
@@ -110,6 +121,7 @@ public class PlanillaResource {
                 servicio.modificarDetalle(detalleId, Respuestas.requerir(cuerpo).aCmd())));
     }
 
+    @Roles({RolApp.RRHH})
     @DELETE
     @Path("/detalles/{detalleId}")
     public Response eliminarDetalle(@PathParam("detalleId") Long detalleId) {
@@ -127,6 +139,7 @@ public class PlanillaResource {
     }
 
     /** Paga la planilla: pasa a Pagado y registra su partida de egreso, en una sola transaccion. */
+    @Roles({RolApp.RRHH})
     @POST
     @Path("/{id}/pagar")
     public Response pagar(@PathParam("id") Long id) {

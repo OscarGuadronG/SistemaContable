@@ -1,14 +1,9 @@
 package com.sistemacontable.control.service.cmd;
-
-import java.util.ArrayList;
-import java.util.Collections;
+import com.sistemacontable.entity.enums.FormaPago;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
-
-/** Orden de trasladar stock de un almacen a otro (distintos). */
-public record TrasladoCmd(Long almacenOrigenId, Long almacenDestinoId, String descripcion,
-        List<LineaTrasladoCmd> lineas) {
-
-    public TrasladoCmd {
-        lineas = lineas == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(lineas));
-    }
+public record TrasladoCmd(Long almacenOrigenId, Long almacenDestinoId, LocalDate fecha, String descripcion,
+        BigDecimal gastosAdicionales, FormaPago formaPagoGastos, String numeroCheque, List<LineaTrasladoCmd> lineas) {
+    public TrasladoCmd { lineas = lineas == null ? List.of() : List.copyOf(lineas); }
 }

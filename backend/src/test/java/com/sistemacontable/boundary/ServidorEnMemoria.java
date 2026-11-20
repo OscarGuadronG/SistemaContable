@@ -22,6 +22,7 @@ import com.sistemacontable.control.service.TipoProductoService;
 import com.sistemacontable.control.service.TrasladoService;
 import com.sistemacontable.control.service.UnidadMedidaService;
 import com.sistemacontable.control.service.VentaService;
+import com.sistemacontable.control.service.*;
 import jakarta.ws.rs.client.Entity;
 import jakarta.ws.rs.client.WebTarget;
 import jakarta.ws.rs.core.MediaType;
@@ -44,7 +45,8 @@ final class ServidorEnMemoria {
             UnidadMedidaResource.class, TipoProductoResource.class, ProductoResource.class, LoteResource.class,
             AlmacenResource.class, CompraResource.class, VentaResource.class, TrasladoResource.class,
             AjusteResource.class, KardexResource.class, ExistenciasResource.class, PartidaResource.class,
-            BalanzaResource.class, PlanillaResource.class);
+            BalanzaResource.class, PlanillaResource.class, AutenticacionResource.class, CreditoResource.class,
+            DevolucionCompraResource.class, DevolucionVentaResource.class, PeriodoResource.class, HojaTrabajoResource.class, ParametroResource.class, InventarioResource.class, LibroResource.class);
 
     final DepartamentoService departamentos = mock(DepartamentoService.class);
     final EmpleadoService empleados = mock(EmpleadoService.class);
@@ -67,6 +69,14 @@ final class ServidorEnMemoria {
     final BalanzaService balanza = mock(BalanzaService.class);
     final PlanillaService planillas = mock(PlanillaService.class);
 
+    final AutenticacionService autenticacion = mock(AutenticacionService.class);
+    final CreditoService creditos = mock(CreditoService.class);
+    final DevolucionService devoluciones = mock(DevolucionService.class);
+    final PeriodoService periodos = mock(PeriodoService.class);
+    final ParametroService parametros = mock(ParametroService.class);
+    final InventarioService inventario = mock(InventarioService.class);
+    final LibroService libros = mock(LibroService.class);
+
     private final JerseyTest servidor;
 
     ServidorEnMemoria() {
@@ -74,6 +84,7 @@ final class ServidorEnMemoria {
         RECURSOS.forEach(config::register);
         config.register(ManejadorExcepciones.class);
         config.register(ManejadorValidacion.class);
+        config.register(FechaParamConverter.class);
         config.register(new AbstractBinder() {
             @SuppressWarnings({"unchecked", "rawtypes"})
             private void enlazar(Object servicio) {
@@ -84,7 +95,7 @@ final class ServidorEnMemoria {
             protected void configure() {
                 for (Object servicio : List.of(departamentos, empleados, cuentas, terceros, clientes, proveedores,
                         unidades, tipos, productos, lotes, almacenes, compras, ventas, traslados, ajustes, kardex,
-                        existencias, partidas, balanza, planillas)) {
+                        existencias, partidas, balanza, planillas, autenticacion, creditos, devoluciones, periodos, parametros, inventario, libros)) {
                     enlazar(servicio);
                 }
             }

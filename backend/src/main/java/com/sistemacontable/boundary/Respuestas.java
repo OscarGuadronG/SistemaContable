@@ -16,6 +16,13 @@ public final class Respuestas {
     /** Cabecera con el total de registros (long) de la coleccion completa, no de la pagina. */
     public static final String TOTAL_REGISTROS = "Total-Records";
 
+    /** Página de una consulta ya filtrada por su servicio, conservando el conteo total. */
+    public static <T> jakarta.ws.rs.core.Response paginaLista(java.util.List<T> datos, Paginacion pagina) {
+        int inicio = Math.min(pagina.first(),datos.size());
+        int fin = (int)Math.min((long)inicio + pagina.max(),datos.size());
+        return jakarta.ws.rs.core.Response.ok(datos.subList(inicio,fin)).header("Total-Records",datos.size()).build();
+    }
+
     private Respuestas() {
     }
 

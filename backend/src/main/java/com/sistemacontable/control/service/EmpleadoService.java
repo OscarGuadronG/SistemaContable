@@ -6,6 +6,7 @@ import com.sistemacontable.control.EmpleadoDAO;
 import com.sistemacontable.control.PlanillaDetalleDAO;
 import com.sistemacontable.control.VentaDAO;
 import com.sistemacontable.control.exception.NoEncontradoException;
+import com.sistemacontable.control.exception.ConflictoException;
 import com.sistemacontable.control.exception.ReglaNegocioException;
 import com.sistemacontable.control.service.cmd.EmpleadoCmd;
 import com.sistemacontable.entity.Departamento;
@@ -83,6 +84,8 @@ public class EmpleadoService {
     public List<Empleado> listar(int first, int max) {
         return empleadoDAO.findRange(first, max);
     }
+    public List<Empleado> buscar(EstadoEmpleado estado, Long departamentoId, String q, int first, int max) { return empleadoDAO.buscar(estado,departamentoId,q,first,max); }
+    public long contar(EstadoEmpleado estado, Long departamentoId, String q) { return empleadoDAO.contar(estado,departamentoId,q); }
 
     /** Total de registros (cabecera Total-Records de la paginacion REST). */
     public long contar() {
@@ -102,12 +105,12 @@ public class EmpleadoService {
                 .orElseThrow(() -> new NoEncontradoException("Departamento", departamentoId));
         empleadoDAO.findByDui(dui).ifPresent(otro -> {
             if (!otro.equals(empleado)) {
-                throw new ReglaNegocioException("Ya existe un empleado con el DUI " + dui);
+                throw new ConflictoException("Ya existe un empleado con el DUI " + dui);
             }
         });
         empleadoDAO.findByNumeroIsss(isss).ifPresent(otro -> {
             if (!otro.equals(empleado)) {
-                throw new ReglaNegocioException("Ya existe un empleado con el numero de ISSS " + isss);
+                throw new ConflictoException("Ya existe un empleado con el numero de ISSS " + isss);
             }
         });
         BigDecimal salario = Validaciones.noNegativo(cmd.salario(), "salario");

@@ -8,9 +8,11 @@ import com.sistemacontable.entity.Empleado;
 import com.sistemacontable.entity.Lote;
 import com.sistemacontable.entity.Producto;
 import com.sistemacontable.entity.Proveedor;
+import com.sistemacontable.entity.Periodo;
 import com.sistemacontable.entity.TipoProducto;
 import com.sistemacontable.entity.UnidadMedida;
 import com.sistemacontable.entity.enums.NaturalezaCuenta;
+import com.sistemacontable.entity.enums.EstadoPeriodo;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Query;
 import java.math.BigDecimal;
@@ -38,6 +40,7 @@ final class EscenarioContable {
     Cuenta costoVentas;
     Cuenta sueldos;
     Cuenta ajusteInventario;
+    Cuenta descuentosCompras,otrosGastos,otrosIngresos,perdidasGanancias,utilidadEjercicio,perdidaEjercicio;
 
     Departamento departamento;
     Empleado empleado;
@@ -49,10 +52,12 @@ final class EscenarioContable {
     Almacen almacenA;
     Almacen almacenB;
     Almacen almacenCerrado;
+    Periodo periodoFiscal2026Q1;
 
     EscenarioContable(EntityManager em) {
         this.em = em;
         sembrarCuentas();
+        sembrarPeriodos();
         sembrarInventarioYPersonas();
         em.flush();
     }
@@ -70,19 +75,33 @@ final class EscenarioContable {
 
     private void sembrarCuentas() {
         caja = cuenta(1101, NaturalezaCuenta.Deudora);
-        bancos = cuenta(1102, NaturalezaCuenta.Deudora);
-        clientes = cuenta(1103, NaturalezaCuenta.Deudora);
-        inventario = cuenta(1104, NaturalezaCuenta.Deudora);
-        ivaCredito = cuenta(1105, NaturalezaCuenta.Deudora);
+        bancos = cuenta(11031, NaturalezaCuenta.Deudora);
+        clientes = cuenta(1104, NaturalezaCuenta.Deudora);
+        inventario = cuenta(11081, NaturalezaCuenta.Deudora);
+        ivaCredito = cuenta(1110, NaturalezaCuenta.Deudora);
         proveedores = cuenta(2101, NaturalezaCuenta.Acreedora);
-        ivaDebito = cuenta(2102, NaturalezaCuenta.Acreedora);
-        retIsss = cuenta(2103, NaturalezaCuenta.Acreedora);
-        retAfp = cuenta(2104, NaturalezaCuenta.Acreedora);
-        retRenta = cuenta(2105, NaturalezaCuenta.Acreedora);
-        ventas = cuenta(4101, NaturalezaCuenta.Acreedora);
-        costoVentas = cuenta(5101, NaturalezaCuenta.Deudora);
-        sueldos = cuenta(5201, NaturalezaCuenta.Deudora);
-        ajusteInventario = cuenta(5301, NaturalezaCuenta.Deudora);
+        ivaDebito = cuenta(2108, NaturalezaCuenta.Acreedora);
+        retIsss = cuenta(21061, NaturalezaCuenta.Acreedora);
+        retAfp = cuenta(21062, NaturalezaCuenta.Acreedora);
+        retRenta = cuenta(21063, NaturalezaCuenta.Acreedora);
+        ventas = cuenta(5101, NaturalezaCuenta.Acreedora);
+        costoVentas = cuenta(4101, NaturalezaCuenta.Deudora);
+        sueldos = cuenta(41071, NaturalezaCuenta.Deudora);
+        ajusteInventario = cuenta(4109, NaturalezaCuenta.Deudora);
+        descuentosCompras=cuenta(4105,NaturalezaCuenta.Acreedora); otrosGastos=cuenta(4108,NaturalezaCuenta.Deudora);
+        otrosIngresos=cuenta(5203,NaturalezaCuenta.Acreedora); perdidasGanancias=cuenta(6101,NaturalezaCuenta.Acreedora);
+        utilidadEjercicio=cuenta(3201,NaturalezaCuenta.Acreedora); perdidaEjercicio=cuenta(3202,NaturalezaCuenta.Deudora);
+    }
+
+    private void sembrarPeriodos() {
+        for(int fiscal=2025;fiscal<=2026;fiscal++) for(int q=1;q<=4;q++) {
+            int mesInicio=switch(q){case 1->7;case 2->10;case 3->1;default->4;};
+            int anioInicio=(q<3)?fiscal:fiscal+1;
+            java.time.LocalDate inicio=java.time.LocalDate.of(anioInicio,mesInicio,1);
+            Periodo p=new Periodo();p.setAnioFiscal(fiscal);p.setTrimestre((short)q);p.setFechaInicio(inicio);p.setFechaFin(inicio.plusMonths(3).minusDays(1));
+            p.setEstado(fiscal==2025&&q<=2?EstadoPeriodo.Cerrado:EstadoPeriodo.Abierto);em.persist(p);
+            if(fiscal==2026&&q==1) periodoFiscal2026Q1=p;
+        }
     }
 
     private void sembrarInventarioYPersonas() {

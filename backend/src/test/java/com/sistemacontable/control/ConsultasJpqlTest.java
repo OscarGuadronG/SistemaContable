@@ -258,9 +258,10 @@ class ConsultasJpqlTest {
         assertEquals(0, new BigDecimal("10.5").compareTo(fila.getCantidad()));
         assertEquals(0, new BigDecimal("14.5").compareTo(dao.stockTotalPorLote(lote.getId())));
 
-        existencia(central, "1"); // duplicado: la BD no tiene UNIQUE(id_lote, id_almacen)
-        em.flush();
-        assertThrows(IllegalStateException.class, () -> dao.findForUpdate(lote.getId(), central.getId()));
+        assertThrows(jakarta.persistence.PersistenceException.class, () -> {
+            existencia(central,"1");
+            em.flush(); // La BD impone UNIQUE(id_lote,id_almacen).
+        });
     }
 
     private void existencia(Almacen almacen, String cantidad) {

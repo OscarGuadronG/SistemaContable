@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.sistemacontable.JpaTestSupport;
 import com.sistemacontable.control.config.ConfigPruebas;
 import com.sistemacontable.control.exception.ReglaNegocioException;
+import com.sistemacontable.control.exception.ConflictoException;
 import com.sistemacontable.control.service.cmd.ClienteCmd;
 import com.sistemacontable.control.service.cmd.CompraCmd;
 import com.sistemacontable.control.service.cmd.EmpleadoCmd;
@@ -47,9 +48,9 @@ class CatalogosH2Test {
         ClienteService clientes = cableado.obtener(ClienteService.class);
         EmpleadoService empleados = cableado.obtener(EmpleadoService.class);
 
-        ReglaNegocioException nit = assertThrows(ReglaNegocioException.class,
+        ConflictoException nit = assertThrows(ConflictoException.class,
                 () -> clientes.crear(new ClienteCmd("Otro", null, esc.cliente.getNit())));
-        ReglaNegocioException dui = assertThrows(ReglaNegocioException.class, () -> empleados.crear(new EmpleadoCmd(
+        ConflictoException dui = assertThrows(ConflictoException.class, () -> empleados.crear(new EmpleadoCmd(
                 "Luis", "Perez", null, esc.departamento.getId(), BigDecimal.TEN, null, "ISSS-9", esc.empleado.getDui())));
 
         assertTrue(nit.getMessage().contains("NIT"), nit.getMessage());
@@ -61,7 +62,7 @@ class CatalogosH2Test {
     @Test
     void nadaSeEliminaMientrasTengaReferenciasReales() {
         cableado.obtener(CompraService.class).registrar(new CompraCmd(esc.proveedor.getId(), esc.empleado.getId(), null,
-                null, BigDecimal.ZERO, List.of(new LineaCompraCmd(esc.loteA.getId(), esc.almacenA.getId(), BigDecimal.ONE,
+                null,null,com.sistemacontable.entity.enums.FormaPago.Credito,null,null,null,List.of(new LineaCompraCmd(esc.loteA.getId(),null,esc.almacenA.getId(), BigDecimal.ONE,
                         BigDecimal.TEN))));
         em.flush();
 

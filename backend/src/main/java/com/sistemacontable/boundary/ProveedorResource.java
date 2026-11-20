@@ -1,5 +1,7 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.dto.ProveedorRequest;
 import com.sistemacontable.boundary.mapper.CatalogoMapper;
 import com.sistemacontable.control.service.ProveedorService;
@@ -28,6 +30,7 @@ import jakarta.ws.rs.core.UriInfo;
  * <p>Solo delega en {@link ProveedorService}: sin reglas de negocio ni acceso a datos. La transaccion abarca la
  * peticion para que el mapeo a DTO lea las relaciones perezosas dentro de ella.</p>
  */
+@Roles({RolApp.Bodega, RolApp.Contabilidad})
 @Path("/proveedores")
 @RequestScoped
 @Transactional
@@ -52,18 +55,21 @@ public class ProveedorResource {
         return Respuestas.ok(CatalogoMapper.proveedor(servicio.buscarPorId(id)));
     }
 
+    @Roles({RolApp.Contabilidad})
     @POST
     public Response crear(@Valid ProveedorRequest cuerpo, @Context UriInfo uriInfo) {
         var creado = servicio.crear(Respuestas.requerir(cuerpo).aCmd());
         return Respuestas.creado(uriInfo, "proveedores", creado.getId(), CatalogoMapper.proveedor(creado));
     }
 
+    @Roles({RolApp.Contabilidad})
     @PUT
     @Path("/{id}")
     public Response modificar(@PathParam("id") Long id, @Valid ProveedorRequest cuerpo) {
         return Respuestas.ok(CatalogoMapper.proveedor(servicio.modificar(id, Respuestas.requerir(cuerpo).aCmd())));
     }
 
+    @Roles({RolApp.Contabilidad})
     @DELETE
     @Path("/{id}")
     public Response eliminar(@PathParam("id") Long id) {

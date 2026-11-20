@@ -9,6 +9,7 @@ import java.math.BigDecimal;
  * Tabla {@code public.existencias}. No hay UNIQUE(id_lote, id_almacen) en la BD: ver docs/recomendaciones-bd.md.
  */
 @Entity
+@Cacheable(false)
 @Table(name = "existencias", schema = "public")
 public class Existencias extends EntidadBase {
 

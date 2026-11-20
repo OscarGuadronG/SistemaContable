@@ -7,6 +7,7 @@ import com.sistemacontable.boundary.dto.ResultadoAjusteDto;
 import com.sistemacontable.boundary.dto.ResultadoCompraDto;
 import com.sistemacontable.boundary.dto.ResultadoVentaDto;
 import com.sistemacontable.boundary.dto.VentaDto;
+import com.sistemacontable.boundary.dto.PartidaDto;
 import com.sistemacontable.control.service.MovimientoKardex;
 import com.sistemacontable.control.service.ResultadoAjuste;
 import com.sistemacontable.control.service.ResultadoCompra;
@@ -35,18 +36,26 @@ public final class InventarioMapper {
     }
 
     public static CompraDto compra(Compra c, List<CompraDetalle> lineas) {
+        return compra(c, lineas, null, null);
+    }
+    public static CompraDto compra(Compra c, List<CompraDetalle> lineas, List<KardexDto> kardex, PartidaDto partida) {
         return c == null ? null : new CompraDto(c.getId(), c.getFecha(), Mapeo.id(c.getProveedor()),
-                Mapeo.id(c.getEmpleado()), c.getDescripcion(), Mapeo.lista(lineas, InventarioMapper::linea));
+                Mapeo.id(c.getEmpleado()), c.getNumeroDocumento(), c.getDescripcion(), c.getFormaPago(), c.getNumeroCheque(),
+                c.getDescuento(), c.getGastosAdicionales(), c.getSubtotal(), c.getIva(), c.getTotal(), c.getTasaInteres(), c.getPlazoMeses(), c.getFechaVencimiento(), kardex, partida, Mapeo.lista(lineas, InventarioMapper::linea));
     }
 
     public static VentaDto venta(Venta v, List<VentaDetalle> lineas) {
+        return venta(v, lineas, null, null);
+    }
+    public static VentaDto venta(Venta v, List<VentaDetalle> lineas, List<KardexDto> kardex, PartidaDto partida) {
         return v == null ? null : new VentaDto(v.getId(), v.getFecha(), Mapeo.id(v.getCliente()),
-                Mapeo.id(v.getEmpleado()), v.getDescripcion(), Mapeo.lista(lineas, InventarioMapper::linea));
+                Mapeo.id(v.getEmpleado()), Mapeo.id(v.getAlmacen()), v.getNumeroDocumento(), v.getDescripcion(), v.getFormaPago(), v.getNumeroCheque(),
+                v.getDescuento(), v.getSubtotal(), v.getIva(), v.getTotal(), v.getCostoTotal(), v.getTasaInteres(), v.getPlazoMeses(), v.getFechaVencimiento(), kardex, partida, Mapeo.lista(lineas, InventarioMapper::linea));
     }
 
     public static KardexDto kardex(Kardex k, List<KardexDetalle> lineas) {
         return k == null ? null : new KardexDto(k.getId(), k.getTipoMovimiento(), k.getFecha(), Mapeo.id(k.getOrigen()),
-                Mapeo.id(k.getDestino()), Mapeo.id(k.getCompra()), Mapeo.id(k.getVenta()), k.getDescripcion(),
+                Mapeo.id(k.getDestino()), Mapeo.id(k.getCompra()), Mapeo.id(k.getVenta()), k.getDescripcion(), k.getGastosAdicionales(), k.getIdDevolucionCompra(), k.getIdDevolucionVenta(),
                 Mapeo.lista(lineas, InventarioMapper::linea));
     }
 
@@ -77,7 +86,7 @@ public final class InventarioMapper {
 
     private static VentaDto.Linea linea(VentaDetalle d) {
         return new VentaDto.Linea(d.getId(), Mapeo.id(d.getLote()), Mapeo.id(d.getAlmacen()), d.getCantidad(),
-                d.getPrecio());
+                d.getPrecio(), d.getCostoUnitario());
     }
 
     private static KardexDto.Linea linea(KardexDetalle d) {

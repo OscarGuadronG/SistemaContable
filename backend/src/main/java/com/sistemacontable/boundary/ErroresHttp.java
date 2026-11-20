@@ -3,6 +3,7 @@ package com.sistemacontable.boundary;
 import com.sistemacontable.boundary.dto.ErrorDto;
 import com.sistemacontable.control.exception.NoEncontradoException;
 import com.sistemacontable.control.exception.ReglaNegocioException;
+import com.sistemacontable.security.PerfilNoActivoException;
 import jakarta.ejb.EJBException;
 import jakarta.json.bind.JsonbException;
 import jakarta.json.stream.JsonParsingException;
@@ -80,11 +81,17 @@ public final class ErroresHttp {
     // ------------------------------------------------------------------------------- clasificacion
 
     private static Optional<Traduccion> clasificar(Throwable e) {
+        if (e instanceof com.sistemacontable.control.exception.ConflictoException) {
+            return Optional.of(new Traduccion(409, ErrorDto.de(CONFLICTO_INTEGRIDAD, e.getMessage())));
+        }
         if (e instanceof ReglaNegocioException) {
             return Optional.of(new Traduccion(422, ErrorDto.de(REGLA_NEGOCIO, e.getMessage())));
         }
         if (e instanceof NoEncontradoException) {
             return Optional.of(new Traduccion(404, ErrorDto.de(NO_ENCONTRADO, e.getMessage())));
+        }
+        if (e instanceof PerfilNoActivoException) {
+            return Optional.of(new Traduccion(403, ErrorDto.de("SIN_PERFIL", "El usuario no tiene un perfil activo")));
         }
         if (e instanceof ConstraintViolationException cve) {
             return Optional.of(new Traduccion(400, new ErrorDto(VALIDACION,
@@ -104,7 +111,8 @@ public final class ErroresHttp {
                 return Optional.of(interno(web));
             }
             // el mensaje del framework (p. ej. RESTEASY003210 con la URL) no se repite en la respuesta
-            return Optional.of(new Traduccion(estado, ErrorDto.de("HTTP_" + estado, mensajeHttp(estado))));
+            String codigo = estado == 401 ? "NO_AUTENTICADO" : estado == 403 ? "PROHIBIDO" : "HTTP_" + estado;
+            return Optional.of(new Traduccion(estado, ErrorDto.de(codigo, mensajeHttp(estado))));
         }
         return Optional.empty();
     }
@@ -147,12 +155,23 @@ public final class ErroresHttp {
             if (actual instanceof SQLException sql && sql.getSQLState() != null
                     && sql.getSQLState().startsWith("23")) {
                 return Optional.of(new Traduccion(409, ErrorDto.de(CONFLICTO_INTEGRIDAD,
-                        "La operacion viola una restriccion de integridad de los datos "
-                                + "(registro duplicado o con referencias)")));
+                        mensajeIntegridad(sql))));
             }
             actual = causaDe(actual);
         }
         return Optional.empty();
+    }
+
+    private static String mensajeIntegridad(SQLException sql) {
+        String detalle = String.valueOf(sql.getMessage()).toLowerCase(java.util.Locale.ROOT);
+        if ("23505".equals(sql.getSQLState())) {
+            if (detalle.contains("dui")) return "Ya existe un empleado con ese DUI";
+            if (detalle.contains("isss")) return "Ya existe un empleado con ese número de ISSS";
+            if (detalle.contains("nit")) return "Ya existe un registro con ese NIT";
+            if (detalle.contains("codigo")) return "Ya existe una cuenta con ese código";
+            return "Ya existe un registro con esos datos únicos";
+        }
+        return "No se puede realizar la operación porque el registro tiene referencias o datos incompatibles";
     }
 
     private static Traduccion interno(Throwable error) {

@@ -1,216 +1,128 @@
 # Backend de Sistema Contable
 
-API REST sobre Jakarta EE 10 (Open Liberty `webProfile-10.0`), JDK 21, Maven 3.9 (wrapper incluido) y PostgreSQL
-(Supabase). Cubre catálogos, inventario (compras, ventas, traslados, ajustes, kardex, existencias), contabilidad
-(partidas y balanza de comprobación) y planillas de pago, con contabilización automática.
+Java 21, Jakarta EE 10, Open Liberty, EclipseLink y PostgreSQL (Supabase). La API usa raíz de contexto `/` y base `/api`. El contrato vigente está en [contrato-api.md](../docs/contrato-api.md); los requerimientos están en [requerimientos.md](../docs/requerimientos.md).
 
-> **Estado.** La capa de datos, de negocio y REST está implementada y probada con pruebas unitarias, H2 en memoria y un
-> servidor JAX-RS en memoria. Se verificó que **Open Liberty arranca y despliega la aplicación y que la capa REST
-> responde** (sin base de datos); **no se ha ejecutado nada contra un PostgreSQL real** (ver
-> [Límites conocidos](#límites-conocidos)). Los códigos de cuenta y las tasas son **valores de referencia que debe
-> verificar quien conoce el catálogo y la normativa** (ver
-> [Valores a verificar](#valores-a-verificar-antes-de-usar-datos-reales)).
-
-## Requisitos
-
-- JDK 21.
-- No hace falta instalar Maven: se usa el wrapper (`./mvnw`, o `mvnw.cmd` en Windows).
-- Una base PostgreSQL con el esquema de [`../docs/esquema-bd.sql`](../docs/esquema-bd.sql) ya creado. El backend **no
-  crea ni modifica tablas** (`eclipselink.ddl-generation=none`).
-
-## Configurar la conexión a la base de datos
-
-La conexión se define con variables de entorno (o con `bootstrap.properties`) que `server.xml` toma como variables de
-Liberty. Las plantillas están en `src/main/liberty/config/`:
-
-| Variable | Significado | Por defecto |
-|---|---|---|
-| `DB_HOST` | Servidor | `localhost` |
-| `DB_PORT` | Puerto | `5432` |
-| `DB_NAME` | Base de datos | `postgres` |
-| `DB_USER` | Usuario | `postgres` |
-| `DB_PASSWORD` | Contraseña | *(vacía, no hay valor por defecto)* |
-| `DB_SSLMODE` | `disable`, `allow`, `prefer`, `require`, `verify-ca`, `verify-full` | `prefer` |
-
-Pasos:
-
-1. Copiar `src/main/liberty/config/server.env.example` como `src/main/liberty/config/server.env` (está ignorado por git)
-   y completar los valores. Liberty **no** lee un archivo `.env` por sí solo; `server.env` sí. Supabase exige SSL: usar
-   `DB_SSLMODE=require`.
-2. Alternativa: exportar las variables en el shell antes de arrancar, o copiar `bootstrap.properties.example` como
-   `bootstrap.properties` (ignorado por git; **tiene más precedencia** que las variables de entorno, no definir ambos).
-3. Nunca versionar contraseñas. Los archivos `*.example` no llevan secretos.
-
-El datasource (`jdbc/ContableDS`) lleva `stringType="unspecified"`; es imprescindible para escribir las columnas enum de
-PostgreSQL (ver [`../docs/recomendaciones-bd.md`](../docs/recomendaciones-bd.md), sección 6). El driver PostgreSQL no va
-dentro del WAR: lo copia `liberty-maven-plugin` al servidor.
-
-## Ejecutar
+## Ejecución y pruebas
 
 ```bash
 cd backend
-./mvnw liberty:dev        # compila, instala Liberty (primera vez: descarga el runtime y las características) y arranca en modo desarrollo
+./mvnw -q test
+./mvnw -q -DskipTests package
+./mvnw liberty:dev
 ```
 
-Otros objetivos útiles:
+El WAR se genera en `target/sistema-contable.war`. Maven Wrapper está incluido. Las pruebas usan Mockito, Jersey en memoria y EclipseLink con H2; no necesitan credenciales ni acceso a Supabase. `./mvnw -q verify` también genera cobertura JaCoCo en `target/site/jacoco`.
 
-```bash
-./mvnw -q -DskipTests package      # genera target/sistema-contable.war
-./mvnw liberty:create liberty:install-feature   # solo instala el servidor y las características
-```
+El esquema documental se mantiene en `docs/esquema-bd.sql`. La aplicación usa `eclipselink.ddl-generation=none`: **no ejecuta migraciones ni crea/recrea datos**. H2 adapta tipos enum, UUID y JSONB; no reproduce los triggers diferidos de PostgreSQL.
 
-El puerto HTTP es el `9080` (`server.xml`). La raíz de contexto no está fijada en `server.xml`: Liberty usa el nombre
-del WAR, así que las URL son `http://localhost:9080/sistema-contable/api/...` (verificado desplegando el WAR con
-`./mvnw liberty:deploy liberty:start`; `GET /sistema-contable/api/hello` respondió 200). Para detener el servidor:
-`./mvnw liberty:stop`. Los ejemplos de esta guía usan la ruta relativa `/api/...`.
+## Variables de entorno
 
-## Pruebas
-
-```bash
-./mvnw -q test       # pruebas unitarias y de integración en memoria
-./mvnw -q verify     # lo anterior + empaquetado y reporte de cobertura (JaCoCo en target/site/jacoco)
-```
-
-Las pruebas **no necesitan base de datos ni Liberty**:
-
-- Reglas de negocio con Mockito.
-- Mapeo JPA y consultas JPQL reales con EclipseLink contra **H2 en memoria**, cargando un esquema equivalente al de
-  `docs/esquema-bd.sql` (incluida la atomicidad de compra/venta/planilla con transacción y *rollback*).
-- Recursos REST contra un servidor JAX-RS en memoria (Jersey, solo `test`): estados HTTP, cabeceras `Location` y
-  `Total-Records`, JSON de los DTO y traductor de excepciones.
-
-## Estructura de paquetes (`com.sistemacontable`)
-
-| Paquete | Contenido |
-|---|---|
-| `entity` | Entidades JPA (una por tabla, 22) y `entity.enums` (los 5 enums de PostgreSQL) |
-| `control` | DAOs `@Stateless` (`AbstractDAO` genérico + uno por entidad); solo acceso a datos, sin reglas de negocio |
-| `control.service` | Servicios `@Stateless` con las reglas de negocio y la contabilización automática; `control.service.cmd` son los comandos (records) que reciben |
-| `control.config` | `ConfigContable`: códigos de cuenta y tasas desde `contabilidad.properties` |
-| `control.exception` | `ReglaNegocioException` (422) y `NoEncontradoException` (404) |
-| `boundary` | Recursos JAX-RS, paginación, traductor de excepciones (`ManejadorExcepciones`/`ErroresHttp`) |
-| `boundary.dto` | Records de entrada (`*Request`, con Bean Validation) y de salida (`*Dto`); **nunca** se exponen entidades JPA |
-| `boundary.mapper` | Mapeo puro entidad a DTO |
-
-Decisiones de diseño relevantes:
-
-- **Los recursos solo delegan en servicios**; no hay lógica de negocio ni acceso a DAOs en ellos (hay una prueba de
-  arquitectura que lo comprueba).
-- Cada recurso es `@RequestScoped @Transactional`: la transacción abarca la petición para que el mapeo a DTO lea las
-  relaciones perezosas dentro de ella. Los servicios siguen siendo EJB con su propia transacción (se unen a la del
-  recurso). Esta combinación (CDI + JTA + EJB) **no se ha ejercitado en Liberty**.
-- **Compras, ventas, planillas (pago) y ajustes son atómicos**: stock, kardex y partida se escriben en una sola
-  transacción; ante cualquier fallo no queda nada a medias.
-- Las partidas, compras y ventas son **inmutables** (solo se crean y se consultan): `PUT`/`DELETE` responden `405`. Una
-  cuenta no se borra: se desactiva.
-
-## Convenciones de la API
-
-Base: `/api`. Todo en JSON (`application/json`); fechas ISO (`2026-03-01`, `2026-03-01T08:00:00Z`); importes como
-números decimales; los campos nulos no se serializan.
-
-**Paginación** (todos los listados): `?first=<desplazamiento>&max=<tamaño>`, con `first >= 0` (por defecto 0) y
-`1 <= max <= 100` (por defecto 50). Son independientes (`first=50&max=50` es la segunda página de 50). El total de
-registros de la colección completa viaja en la cabecera `Total-Records`. Valores fuera de rango responden `400`.
-
-**Errores**: cuerpo `{"codigo": "...", "mensaje": "..."}` (más `violaciones` en validaciones y `referencia` en errores
-internos).
-
-| Estado | Cuándo | `codigo` |
+| Variable | Predeterminado | Uso |
 |---|---|---|
-| 400 | Parámetro, JSON o campos obligatorios inválidos | `SOLICITUD_INVALIDA`, `VALIDACION` (lista de `violaciones`), `JSON_INVALIDO` |
-| 404 | El recurso (o uno referenciado) no existe, o la ruta no existe | `NO_ENCONTRADO`, `HTTP_404` |
-| 405 | Método no permitido (p. ej. `PUT /partidas/1`) | `HTTP_405` |
-| 409 | Violación de integridad en la base (duplicado, referencia) | `CONFLICTO_INTEGRIDAD` |
-| 415 | Tipo de contenido no soportado | `HTTP_415` |
-| 422 | Regla de negocio incumplida (stock insuficiente, partida descuadrada, ...) | `REGLA_NEGOCIO` |
-| 500 | Error inesperado: mensaje genérico y `referencia` (el detalle y la traza solo van al log del servidor) | `ERROR_INTERNO` |
+| `PORT` | `9080` | Puerto HTTP, también lo suministra Render |
+| `DB_HOST` | `localhost` | Host PostgreSQL |
+| `DB_PORT` | `5432` | Puerto PostgreSQL |
+| `DB_NAME` | `postgres` | Base de datos |
+| `DB_USER` | `postgres` | Usuario JDBC |
+| `DB_PASSWORD` | vacío | Contraseña; suministrarla como secreto |
+| `DB_SSLMODE` | `prefer` | En Supabase utilizar `require` |
+| `SUPABASE_URL` | `https://xyukidsdmihmsmlpddqz.supabase.co` | Emisor y JWKS de Auth |
+| `SUPABASE_SERVICE_ROLE_KEY` | sin valor | Solo servidor; necesaria para administrar usuarios |
+| `CORS_ORIGINS` | `http://localhost:9000` | Orígenes permitidos, separados por comas |
 
-Las excepciones que el contenedor envuelve en `EJBException` se desenvuelven: un 422 o un 404 nunca llega como 500.
+Para el proyecto indicado, el session pooler es `aws-0-us-west-2.pooler.supabase.com:5432`, base `postgres`, usuario `postgres.xyukidsdmihmsmlpddqz`, con SSL `require`. No hay contraseñas versionadas ni se intenta deducirlas. El datasource conserva `stringType=unspecified` para enum y JSONB y limita su pool a cinco conexiones.
+
+En desarrollo pueden copiarse `src/main/liberty/config/server.env.example` a `server.env` o `bootstrap.properties.example` a `bootstrap.properties`, ambos ignorados por git. Liberty lee esos archivos, no un `.env` arbitrario. Evitar configurar una misma variable con distintos valores en varias fuentes.
+
+## Seguridad y errores
+
+Excepto `GET /api/hello` y `OPTIONS`, cada petición necesita `Authorization: Bearer <access_token>` de Supabase Auth. Se verifica ES256, JWKS remoto con caché y renovación de claves desconocidas, emisor, audiencia `authenticated` y expiración con tolerancia de 60 segundos. El perfil se lee de la BD para autorizar cada solicitud; el rol del JWT no decide permisos. La entidad de perfil no usa caché compartida.
+
+`@Roles` permite declarar permisos por clase y método; el método tiene precedencia y Administrador tiene acceso a los permisos configurados. Los endpoints sin permisos configurados se rechazan. La matriz completa está en el contrato §2. Para créditos, el servicio además controla el tipo de documento: Ventas solo opera créditos de ventas, Contabilidad y Administrador pueden operar ambos.
+
+Las respuestas de error tienen `{codigo,mensaje,violaciones?}`. Los estados son `400` para datos/JSON inválidos, `401 NO_AUTENTICADO`, `403 SIN_PERFIL` o `PROHIBIDO`, `404`, `409 CONFLICTO_INTEGRIDAD`, `422 REGLA_NEGOCIO` y `500` con referencia para el log. DUI, ISSS, NIT y código de cuenta duplicados tienen mensajes legibles y respuesta 409. Bean Validation está localizado al español.
+
+CORS admite únicamente los orígenes configurados, cabeceras `Authorization,Content-Type`, métodos `GET,POST,PUT,DELETE,OPTIONS` y expone `Location,Total-Records`.
 
 ## Endpoints
 
-`GET` de colección admite paginación. `POST` crea y responde `201` con cabecera `Location` y el recurso creado.
+Los listados paginados usan `first=0&max=50`, máximo 100, y `Total-Records`. Las fechas son ISO y los listados de documentos se ordenan por fecha e id. Los métodos de creación devuelven 201 y `Location`. Los cuerpos exactos y permisos de cada ruta están en el contrato.
 
-| Recurso | Métodos |
+| Ruta bajo `/api` | Operaciones |
 |---|---|
-| `/api/hello` | `GET` (verificación) |
-| `/api/departamentos`, `/api/empleados`, `/api/terceros`, `/api/clientes`, `/api/proveedores`, `/api/unidades-medida`, `/api/tipos-producto`, `/api/productos`, `/api/lotes`, `/api/almacenes` | `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `DELETE /{id}` (204; `422` si tiene referencias) |
-| `/api/cuentas` | `GET`, `GET /{id}`, `POST`, `PUT /{id}`, `POST /{id}/activar`, `POST /{id}/desactivar` (sin `DELETE`) |
-| `/api/compras` | `GET`, `GET /{id}` (con líneas), `POST` (registra compra, existencias, kardex y partida; el cuerpo lleva `porcentajeContado`) |
-| `/api/ventas` | `GET`, `GET /{id}` (con líneas), `POST` (registra venta, existencias, kardex, ingreso y costo de ventas; el cuerpo lleva `porcentajeContado`) |
-| `/api/traslados` | `POST` (el movimiento se consulta en `/api/kardex/{id}`, indicado en `Location`) |
-| `/api/ajustes` | `POST` (cantidad con signo y motivo; el movimiento se consulta en `/api/kardex/{id}`) |
-| `/api/kardex` | `GET`, `GET /{id}` (con líneas); solo lectura |
-| `/api/existencias` | `GET`, `GET /{id}`; solo lectura |
-| `/api/partidas` | `GET`, `GET /{id}` (con líneas), `POST`; `PUT` y `DELETE` dan `405` |
-| `/api/balanza?desde=AAAA-MM-DD&hasta=AAAA-MM-DD` | `GET` (ambas fechas obligatorias) |
-| `/api/planillas` | `GET`, `GET /{id}`, `POST`, `PUT /{id}` |
-| `/api/planillas/{id}/detalles` | `GET`, `POST` (agrega un empleado Activo) |
-| `/api/planillas/{id}/detalles/generar` | `POST` (un detalle por cada empleado Activo sin detalle) |
-| `/api/planillas/detalles/{detalleId}` | `GET`, `PUT`, `DELETE` (solo planillas Pendiente) |
-| `/api/planillas/{id}/calculo` | `GET` (calcula sin escribir) |
-| `/api/planillas/{id}/pagar` | `POST` (pasa a Pagado y registra la partida de egreso) |
+| `/hello` | GET público de salud |
+| `/me` | GET identidad, perfil y empleado vinculado |
+| `/usuarios`, `/usuarios/{uuid}` | GET/POST y PUT, solo Administrador; integración con Admin API de Supabase |
+| `/parametros`, `/parametros/{clave}` | GET y PUT de `{valor}` |
+| `/productos`, `/unidades-medida`, `/tipos-producto`, `/lotes` | CRUD de catálogos de inventario |
+| `/inventario`, `/inventario/{productoId}` | GET agregado por producto y detalle de lotes/almacenes; filtros buscar, tipoId, almacenId, disponibilidad |
+| `/existencias`, `/kardex` | GET colección y detalle |
+| `/ajustes` | POST ajuste con cantidad con signo y motivo |
+| `/compras`, `/compras/{id}` | POST, GET listado filtrado y detalle |
+| `/ventas/precios?almacenId=`, `/ventas`, `/ventas/{id}` | GET precios, POST venta, GET listado filtrado y detalle |
+| `/libros/compras`, `/libros/ventas` | GET con desde/hasta, filas y totales |
+| `/devoluciones-compra`, `/devoluciones-compra/{id}` | POST y GET; filtros desde/hasta/compraId |
+| `/devoluciones-venta`, `/devoluciones-venta/{id}` | POST y GET; filtros desde/hasta/ventaId |
+| `/creditos?tipo=venta\|compra` | GET; filtros estado y terceroId |
+| `/creditos/{tipo}/{documentoId}?fecha=` | GET saldo, pagos y simulación de interés |
+| `/creditos/pagos` | POST capital, fecha y forma de pago; devuelve pago y partida |
+| `/almacenes`, `/almacenes/{id}` | CRUD; POST `/{id}/habilitar` y `/{id}/inhabilitar` |
+| `/traslados`, `/traslados/{kardexId}` | POST/GET; gastos adicionales y partida cuando corresponde |
+| `/empleados`, `/departamentos` | CRUD; filtros empleados estado/departamentoId/buscar |
+| `/empleados/seleccion` | GET empleados activos para selección |
+| `/empleados/{id}/activar`, `/empleados/{id}/inactivar` | POST cambio de estado |
+| `/planillas`, `/planillas/{id}` | GET/POST/PUT; filtros estado/desde/hasta |
+| `/planillas/{id}/detalles`, `/planillas/{id}/detalles/generar` | GET/POST detalles, generación de empleados activos |
+| `/planillas/detalles/{detalleId}` | GET/PUT/DELETE mientras esté Pendiente |
+| `/planillas/{id}/calculo`, `/planillas/{id}/pagar` | GET cálculo y POST pago con partida vinculada |
+| `/clientes`, `/proveedores`, `/terceros` | CRUD; GET `/terceros/{id}/partidas` |
+| `/cuentas`, `/cuentas/arbol`, `/cuentas/{id}` | GET árbol/lista/detalle, POST/PUT/DELETE seguro; POST activar/desactivar |
+| `/partidas`, `/partidas/{id}` | GET libro diario filtrado/detalle y POST manual; inmutables |
+| `/balanza?desde=&hasta=` | GET balanza |
+| `/periodos`, `/periodos/actual` | GET trimestres fiscales |
+| `/hoja-trabajo?periodoId=` o `?desde=&hasta=` | GET hoja trimestral o vista por rango |
+| `/periodos/{id}/cerrar` | POST cierre, instantánea y apertura siguiente |
 
-**Forma de pago de compras y ventas.** No se guarda en la base de datos: el cuerpo de `POST /api/compras` y
-`POST /api/ventas` lleva un `porcentajeContado` obligatorio (0 a 100, ambos incluidos; `400` si falta o está fuera de
-rango). Con el total ya con IVA, `contado = redondeo(total × porcentajeContado / 100)` (HALF_UP, 2 decimales) y
-`crédito = total − contado`, así la partida cuadra al centavo. El contado va a `cuenta.caja` y el crédito a
-`cuenta.proveedores` (compra) o `cuenta.clientes` (venta); nunca se genera una línea en cero y una cuenta de pago solo se
-exige si su línea se genera (con 100 % de contado no hace falta `cuenta.clientes`/`cuenta.proveedores`; con 0 %, no
-hace falta `cuenta.caja`). Como la forma de pago no queda registrada, saldar después lo que quedó a crédito no está
-soportado; hay una propuesta no aplicada en [`../docs/recomendaciones-bd.md`](../docs/recomendaciones-bd.md).
+## Reglas contables e inventario
 
-Los listados de compras, ventas, kardex y partidas **no incluyen las líneas** (se omite el campo `lineas`); `GET /{id}`
-sí las incluye.
+Los recursos delegan en servicios EJB `@Stateless`; los DAOs concentran persistencia. Los DTO y comandos son records. Las peticiones usan JTA y los errores de negocio provocan rollback. Stock, documentos, kardex y partidas se escriben en una sola transacción. `Dinero` concentra HALF_UP: importes a dos decimales y costos unitarios a cuatro.
 
-## Valores a verificar antes de usar datos reales
+Compras y ventas guardan `formaPago` (`Contado`, `Credito`, `Cheque`), documento, descuento y totales. Cheque exige número en compras, ventas y pagos. Empleado omitido se resuelve con el perfil; sin vínculo se rechaza con 422. La compra permite crear lotes dentro de su transacción. Los gastos de adquisición se distribuyen por valor de línea y la última absorbe la diferencia de redondeo; el precio de compra queda separado del costo capitalizado en kardex.
 
-Todos los códigos de cuenta y todas las tasas de `src/main/resources/contabilidad.properties` son **valores de
-referencia (placeholders)**. Hay que contrastarlos con el catálogo de cuentas real cargado en la base y con la
-normativa vigente (IVA, ISSS, AFP, renta y recargos de horas extra) antes de usar compras, ventas o planillas reales.
-Cada clave se puede sobreescribir **sin recompilar** con una propiedad de sistema (`-Dcuenta.inventario=1204`) o con una
-variable de entorno (`CUENTA_INVENTARIO=1204`; mayúsculas y puntos a guion bajo).
+El costo de lote por almacén se obtiene de sus entradas a ese almacén. Ventas calcula el precio con el margen, consume FIFO por primera entrada e id de lote, guarda el costo histórico por detalle y reconoce ingreso e inventario/costo en una partida de Ingreso. Los traslados incorporan gastos al costo de destino y generan una partida únicamente por esos gastos. Los ajustes generan partidas y vinculan su kardex: faltantes contra Otros gastos y sobrantes contra Otros ingresos.
 
-| Clave | Valor de referencia | Uso |
-|---|---|---|
-| `cuenta.caja` / `cuenta.bancos` / `cuenta.clientes` | 1101 / 1102 / 1103 | Caja: parte de contado de compras y ventas; Clientes: parte a crédito de ventas; Bancos: pago de planillas |
-| `cuenta.inventario` | 1104 | Compras (debe), costo de ventas (haber), ajustes |
-| `cuenta.iva.credito` / `cuenta.iva.debito` | 1105 / 2102 | IVA de compras y de ventas |
-| `cuenta.proveedores` | 2101 | Parte a crédito de las compras (haber) |
-| `cuenta.retenciones.isss` / `.afp` / `.renta` | 2103 / 2104 / 2105 | Retenciones de la planilla |
-| `cuenta.ventas` / `cuenta.costo.ventas` | 4101 / 5101 | Ingreso y costo de las ventas |
-| `cuenta.sueldos` | 5201 | Gasto de sueldos de la planilla |
-| `cuenta.ajuste.inventario` | 5301 | Contrapartida de los ajustes (si `ajuste.genera.partida=true`) |
-| `ajuste.genera.partida` | `false` | Si un ajuste de inventario genera partida |
-| `iva.tasa` | `0.13` | IVA sobre el subtotal |
-| `isss.tasa.empleado` / `isss.techo` | `0.03` / `1000.00` | ISSS del empleado y techo mensual |
-| `afp.tasa.empleado` | `0.0725` | AFP del empleado |
-| `hora.extra.diurna.recargo` / `hora.extra.nocturna.recargo` | `1.00` / `1.25` | Recargo sobre el valor de la hora |
-| `horas.mes` / `dias.mes` | `240` / `30` | Valor de la hora y prorrateo por días |
-| `renta.tramo.N.desde/sobre/tasa/cuota.fija` | Tabla de 4 tramos | Retención de renta mensual |
+Las devoluciones controlan fecha, plazo, cantidades acumuladas y stock cuando sale mercadería. En compras se recupera el costo de la entrada del documento; si el mismo lote tiene varias entradas en la compra/almacén, se usa su promedio ponderado. En ventas se conserva precio y costo históricos, se prorratea el descuento general y se revierte IVA. Un cliente puede devolver a otro almacén habilitado: el límite se controla sobre todo lo vendido de ese lote, independientemente del almacén receptor.
 
-Las cuentas deben existir en `cuentas`, estar activas y ser **imputables**; si falta alguna, la operación se rechaza con
-`422` indicando la clave de configuración, sin escribir nada.
+Los créditos copian tasa y plazo al documento. El interés simple se calcula sobre el capital abonado desde la fecha del documento, con meses iniciados de 30 días: a los 29 días se exonera con configuración predeterminada, a los 30 se cobra un mes y a los 45 se cobran dos. No se capitaliza interés. Los saldos restan capital y compensaciones/devoluciones; para ventas se toma de su asiento el reintegro exacto a Clientes, incluido IVA y redondeo por devolución. Las cabeceras se bloquean al pagar/devolver para evitar exceder cantidades o saldos concurrentemente.
 
-## Límites conocidos
+Las cuentas usan niveles por longitud 1, 2, 4 y 5; las hijas heredan naturaleza, prefijo y longitud siguiente. Solo se eliminan cuentas sin hijas ni movimientos. La configuración de cuentas coincide con §11 del contrato y admite sobreescritura por propiedad Java o variable de entorno: `cuenta.inventario` → `CUENTA_INVENTARIO`. Las tasas de negocio modificables se obtienen de `parametro`.
 
-- **PostgreSQL no se ha ejercitado.** Las pruebas usan H2 (que no tiene enums nativos de PostgreSQL). Se arrancó
-  Liberty (el plugin instala `openliberty-kernel` 26.0.0.9; el motor REST es RESTEasy) **sin base de datos**
-  y se comprobó: despliegue del WAR, enrutamiento, CDI + `@Transactional` + EJB hasta el acceso a datos,
-  deserialización JSON-B de los records, Bean Validation (`400` con `violaciones`), `404`/`405` y el `500` genérico con
-  referencia cuando no hay base. **Sin base de datos no se ejercitó**: ninguna lectura/escritura real, la serialización
-  de DTO con datos, `stringType=unspecified` con los enums ni el esquema real; `liberty:dev` (modo desarrollo) tampoco.
-- Los mensajes por defecto de Bean Validation salen en inglés (`must not be null`); se pueden localizar con un
-  `ValidationMessages.properties` si se desea.
-- La base no impone todas las reglas (por ejemplo, no hay `UNIQUE (id_lote, id_almacen)` en `existencias`); el backend
-  las valida y compensa con bloqueos, pero hay propuestas de restricciones e índices en
-  [`../docs/recomendaciones-bd.md`](../docs/recomendaciones-bd.md) (**no aplicadas**).
-- No hay autenticación ni autorización: la API no tiene seguridad y no debe exponerse tal cual.
-- Los listados no se pueden filtrar (solo paginar), salvo la balanza por rango de fechas; los de compras, ventas, kardex
-  y partidas se ordenan por id ascendente.
-- Cada fila de un listado puede cargar sus relaciones perezosas dentro de la transacción (consultas adicionales por
-  fila); con páginas de hasta 100 filas es aceptable, pero se puede optimizar con `JOIN FETCH` si hiciera falta.
-- El cálculo de planilla no incluye aportes patronales ni otros descuentos; ver el Javadoc de `PlanillaService`.
-- `backend/.env.example` no se leyó ni se modificó en este trabajo; la configuración documentada aquí es la de
-  `src/main/liberty/config/*.example`. Conviene revisar que ambas plantillas sean coherentes.
+Toda partida resuelve y guarda su periodo según la fecha y rechaza periodos cerrados. El calendario fiscal inicia en julio. La hoja separa comprobación, ajustes, saldos ajustados, resultados y balance, y conserva el signo efectivo del saldo. El cierre liquida clases 4/5 contra Pérdidas y ganancias, reconoce utilidad/pérdida y abre el siguiente periodo con clases 1–3. La hoja cerrada se conserva en JSONB. No se permite cerrar antes que los periodos anteriores. Un periodo sin movimientos de resultados se rechaza con 422 para evitar crear un asiento sin líneas; no se inventan importes.
+
+## Docker y Render
+
+Desde la raíz del repositorio:
+
+```bash
+docker build -t sistema-contable-api backend/
+docker run --rm --name sistema-contable-api -p 9080:9080 \
+  -e PORT=9080 -e DB_HOST -e DB_PORT -e DB_NAME -e DB_USER -e DB_PASSWORD \
+  -e DB_SSLMODE=require -e SUPABASE_URL -e SUPABASE_SERVICE_ROLE_KEY \
+  -e CORS_ORIGINS=http://localhost:9000 sistema-contable-api
+curl -i http://localhost:9080/api/hello
+curl -i http://localhost:9080/api/me
+```
+
+El Dockerfile compila con el wrapper, instala las features necesarias sobre Open Liberty kernel slim Java 21 OpenJ9, copia el WAR y el driver JDBC fuera del WAR y ejecuta la configuración del runtime. El heap está limitado a 300 MB y la caché de clases compartidas usa `/tmp`. La clave de servicio y la contraseña se suministran al ejecutar; nunca se copian dentro de la imagen.
+
+En Render crear un Web Service desde Docker, indicar `backend/Dockerfile` y contexto `backend/` (o configurar Root Directory `backend` y Dockerfile `Dockerfile`). Cargar las variables de la tabla, `DB_SSLMODE=require` y el origen HTTPS real del frontend en `CORS_ORIGINS`. Render inyecta `PORT`. Configurar health check `/api/hello`. El contexto raíz evita prefijos adicionales antes de `/api`.
+
+## Límites de verificación
+
+No se ha probado contra PostgreSQL real ni contra cuentas reales de Auth: no se dispone de la contraseña ni de una service role key, y no se buscaron. H2 comprueba consultas, relaciones, reglas, asientos y rollback; los enum/JSONB, triggers diferidos y permisos efectivos de la BD requieren una prueba adicional en el entorno autorizado.
+
+Una transacción JTA no incluye la Admin API remota. Se valida el empleado antes de crear usuarios y se intenta compensar con DELETE si falla la persistencia del perfil; un fallo de red o del commit posterior puede requerir reconciliar un usuario huérfano en Auth. El backend nunca expone la service role key.
+
+La planilla conserva el cálculo existente de retenciones y horas extra; no incluye aportes patronales ni descuentos adicionales. El límite de memoria de Render requiere observar el consumo del proceso completo bajo carga; el heap no representa la totalidad del RSS.
+
+El resultado exacto de pruebas y despliegue de esta entrega se registra en [INFORME.md](INFORME.md).

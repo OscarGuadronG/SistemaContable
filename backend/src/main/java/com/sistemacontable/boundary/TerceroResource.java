@@ -1,8 +1,12 @@
 package com.sistemacontable.boundary;
 
+import com.sistemacontable.security.Roles;
+import com.sistemacontable.security.RolApp;
 import com.sistemacontable.boundary.dto.TerceroRequest;
 import com.sistemacontable.boundary.mapper.CatalogoMapper;
 import com.sistemacontable.control.service.TerceroService;
+import com.sistemacontable.control.service.PartidaService;
+import com.sistemacontable.boundary.mapper.ContabilidadMapper;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -28,6 +32,7 @@ import jakarta.ws.rs.core.UriInfo;
  * <p>Solo delega en {@link TerceroService}: sin reglas de negocio ni acceso a datos. La transaccion abarca la
  * peticion para que el mapeo a DTO lea las relaciones perezosas dentro de ella.</p>
  */
+@Roles({RolApp.Contabilidad})
 @Path("/terceros")
 @RequestScoped
 @Transactional
@@ -37,6 +42,7 @@ public class TerceroResource {
 
     @Inject
     private TerceroService servicio;
+    @Inject private PartidaService partidas;
 
     @GET
     public Response listar(@QueryParam("first") @DefaultValue(Paginacion.PRIMERO_POR_DEFECTO_TEXTO) int first,
@@ -52,18 +58,29 @@ public class TerceroResource {
         return Respuestas.ok(CatalogoMapper.tercero(servicio.buscarPorId(id)));
     }
 
+    @GET @Path("/{id}/partidas")
+    public Response partidas(@PathParam("id") Long id,@QueryParam("first") @DefaultValue(Paginacion.PRIMERO_POR_DEFECTO_TEXTO) int first,
+            @QueryParam("max") @DefaultValue(Paginacion.MAX_POR_DEFECTO_TEXTO) int max) {
+        servicio.buscarPorId(id); Paginacion p=Paginacion.de(first,max);
+        var rows=partidas.buscar(null,null,null,id,null,null,p.first(),p.max());
+        return Respuestas.pagina(partidas.resumen(rows),partidas.contarBuscar(null,null,null,id,null,null),ContabilidadMapper::resumen);
+    }
+
+    @Roles({RolApp.Contabilidad})
     @POST
     public Response crear(@Valid TerceroRequest cuerpo, @Context UriInfo uriInfo) {
         var creado = servicio.crear(Respuestas.requerir(cuerpo).aCmd());
         return Respuestas.creado(uriInfo, "terceros", creado.getId(), CatalogoMapper.tercero(creado));
     }
 
+    @Roles({RolApp.Contabilidad})
     @PUT
     @Path("/{id}")
     public Response modificar(@PathParam("id") Long id, @Valid TerceroRequest cuerpo) {
         return Respuestas.ok(CatalogoMapper.tercero(servicio.modificar(id, Respuestas.requerir(cuerpo).aCmd())));
     }
 
+    @Roles({RolApp.Contabilidad})
     @DELETE
     @Path("/{id}")
     public Response eliminar(@PathParam("id") Long id) {

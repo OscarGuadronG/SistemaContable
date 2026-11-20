@@ -7,12 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.sistemacontable.control.CuentaDAO;
 import com.sistemacontable.control.exception.NoEncontradoException;
 import com.sistemacontable.control.exception.ReglaNegocioException;
+import com.sistemacontable.control.exception.ConflictoException;
 import com.sistemacontable.control.service.cmd.CuentaCmd;
 import com.sistemacontable.entity.Cuenta;
 import com.sistemacontable.entity.enums.NaturalezaCuenta;
@@ -60,7 +62,7 @@ class CuentaServiceTest {
         when(cuentaDAO.findByCodigo(1104)).thenReturn(Optional.empty());
         when(cuentaDAO.findByCodigo(12)).thenReturn(Optional.empty());
         when(cuentaDAO.findByCodigo(5)).thenReturn(Optional.empty());
-        when(cuentaDAO.findByCodigo(111)).thenReturn(Optional.empty());
+        when(cuentaDAO.findByCodigo(1101)).thenReturn(Optional.empty());
         when(cuentaDAO.findByCodigo(41)).thenReturn(Optional.empty());
         when(cuentaDAO.findByCodigo(2)).thenReturn(Optional.empty());
     }
@@ -129,7 +131,7 @@ class CuentaServiceTest {
 
     @Test
     void crearConCodigoYaExistenteSeRechaza() {
-        ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
+        ConflictoException ex = assertThrows(ConflictoException.class,
                 () -> servicio.crear(new CuentaCmd(11, "Duplicada", NaturalezaCuenta.Deudora, true, 1L)));
 
         assertTrue(ex.getMessage().contains("11"), ex.getMessage());
@@ -165,7 +167,7 @@ class CuentaServiceTest {
     @Test
     void crearHijoDeUnPadreImputableSeRechazaPorqueUnaCuentaConHijosNoEsImputable() {
         ReglaNegocioException ex = assertThrows(ReglaNegocioException.class,
-                () -> servicio.crear(new CuentaCmd(111, "Subcaja", NaturalezaCuenta.Deudora, true, 2L)));
+                () -> servicio.crear(new CuentaCmd(1101, "Subcaja", NaturalezaCuenta.Deudora, true, 2L)));
 
         assertTrue(ex.getMessage().contains("imputable"), ex.getMessage());
         noSeCreoNiModificoNada();
@@ -191,7 +193,7 @@ class CuentaServiceTest {
 
     @Test
     void modificarConElCodigoDeOtraCuentaSeRechaza() {
-        assertThrows(ReglaNegocioException.class,
+        assertThrows(ConflictoException.class,
                 () -> servicio.modificar(4L, new CuentaCmd(11, "Ingresos", null, false, null)));
         noSeCreoNiModificoNada();
     }
@@ -360,10 +362,17 @@ class CuentaServiceTest {
     }
 
     @Test
-    void noExisteBorradoFisicoDeCuentas() {
-        for (var m : CuentaService.class.getDeclaredMethods()) {
-            String nombre = m.getName().toLowerCase();
-            assertFalse(nombre.contains("elimin") || nombre.contains("borr"), "baja logica solamente: " + m.getName());
-        }
+    void eliminaCuentaSoloCuandoNoTieneHijosNiMovimientos() {
+        when(cuentaDAO.tieneMovimientos(caja)).thenReturn(false);
+        servicio.eliminar(caja.getId());
+        verify(cuentaDAO).eliminar(caja.getId());
+
+        when(cuentaDAO.findHijos(caja)).thenReturn(List.of(ingresos));
+        assertThrows(ReglaNegocioException.class,()->servicio.eliminar(caja.getId()));
+        verify(cuentaDAO,times(1)).eliminar(caja.getId());
+
+        when(cuentaDAO.findHijos(caja)).thenReturn(List.of());when(cuentaDAO.tieneMovimientos(caja)).thenReturn(true);
+        assertThrows(ReglaNegocioException.class,()->servicio.eliminar(caja.getId()));
+        verify(cuentaDAO,times(1)).eliminar(caja.getId());
     }
 }
