@@ -96,6 +96,38 @@
         </q-card>
       </div>
     </div>
+    <div class="text-subtitle1 text-weight-medium q-mb-sm">Equipo de Desarrollo</div>
+    <div class="row q-col-gutter-md">
+  <div
+    v-for="integrante in equipo"
+    :key="integrante.nombre"
+    class="col-12 col-sm-6 col-md-4"
+  >
+    <q-card flat bordered class="team-card full-height">
+      <q-card-section class="column items-center text-center q-pa-lg">
+        <q-avatar size="90px" color="blue-1" text-color="primary">
+          <img :src="integrante.foto" :alt="integrante.nombre" style="object-fit: cover"/>
+        </q-avatar>
+
+        <div class="text-h6 text-weight-bold q-mt-md">
+          {{ integrante.nombre }}
+        </div>
+
+        <q-chip
+          color="blue-1"
+          text-color="primary"
+          size="sm"
+          class="q-mt-sm"
+        >
+          {{ integrante.carnet }}
+        </q-chip>
+
+        <q-btn flat dense no-caps color="primary" icon="fa-brands fa-github"
+          :label="integrante.github" :href="integrante.github" target="_blank" rel="noopener noreferrer"/>
+      </q-card-section>
+    </q-card>
+  </div>
+</div>
   </q-page>
 </template>
 
@@ -145,6 +177,27 @@ const textoTasa = computed(() =>
 const textoMargen = computed(() =>
   porcentaje(numeroParametro(parametros.value, 'venta.margen', 0.3))
 )
+
+const equipo = [
+  {
+    nombre: 'Oscar Guadrón',
+    carnet: 'GG24017',
+    github: 'https://github.com/OscarGuadronG',
+    foto: 'https://github.com/OscarGuadronG.png',
+  },
+  {
+    nombre: 'Sergio Guerrero',
+    carnet: 'GR24015',
+    github: 'https://github.com/Serg10G12',
+    foto: 'https://github.com/Serg10G12.png',
+  },
+  {
+    nombre: 'Jefferson Sandoval',
+    carnet: 'SH23012',
+    github: 'https://github.com/jeffhSH',
+    foto: 'https://github.com/jeffhSH.png',
+  }
+]
 
 function ir(ruta) {
   router.push(ruta)
